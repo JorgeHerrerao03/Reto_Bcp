@@ -1,6 +1,6 @@
 """Motor Claude-first. Claude interpreta (español informal, spanglish, inglés); las reglas auditan.
 
-Llamadas (todas JSON, temperatura 0, validadas y cacheadas por contenido):
+Llamadas (todas JSON, validadas y cacheadas por contenido):
   1. fuente      → relevancia, palanca, tipo de cada oración, entidades para la herramienta
   2. relaciones  → por señal: qué afirmación posterior refuta / resuelve / confirma a cuál anterior
   3. comité      → solo si Claude y reglas discrepan: postura A ∥ postura B → juez decide

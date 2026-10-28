@@ -68,8 +68,9 @@ def call(prompt, max_tokens=500, system=None, temperature=None):
     body = {"model": c["model"], "max_tokens": max_tokens, "messages": [{"role": "user", "content": prompt}]}
     if system:
         body["system"] = system
-    if temperature is not None:
-        body["temperature"] = temperature
+    # Modelos recientes no aceptan `temperature`: la reproducibilidad se logra con caché por contenido
+    if temperature is not None and os.getenv("RSA_TEMPERATURE"):
+        body["temperature"] = float(os.getenv("RSA_TEMPERATURE"))
     req = urllib.request.Request(os.getenv("RSA_API_URL", "https://api.anthropic.com/v1/messages"), data=json.dumps(body).encode(),
                                  headers={"x-api-key": c["key"], "anthropic-version": "2023-06-01",
                                           "content-type": "application/json"})

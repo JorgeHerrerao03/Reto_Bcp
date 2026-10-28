@@ -113,8 +113,11 @@ class Engine:
             ai.events = []
             res["motor"] = ai.motor()
         elif ai:
-            res["motor"] = {"modo": "reglas", "aviso": "Claude no respondió; se usó el motor de reglas",
-                            **ai.motor(), "modo_solicitado": "claude"}
+            err = next((e.get("error") for e in res["log"] + ai.events if "fallo" in e.get("accion", "")), "")
+            res["motor"] = {**ai.motor(), "modo_solicitado": "claude",
+                            "aviso": "Claude no respondió; se usó el motor de reglas" + (f" · {err[:220]}" if err else "")}
+            res["log"].extend(ai.events)
+            ai.events = []
             res["motor"]["modo"] = "reglas"
         self._assign_ids(res["signals"])
         prev = self.state["versiones"][-1] if self.state["versiones"] else None

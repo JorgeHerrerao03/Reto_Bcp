@@ -56,7 +56,7 @@ Con API key configurada, **Claude decide siempre**: entiende español informal, 
 **Comité de verificación (debate).** Cuando Claude y las reglas discrepan sobre la relevancia o sobre una refutación o resolución, se arma un comité: una postura SÍ y una postura NO en paralelo, y un juez que decide citando evidencia. El tope es de 3 comités por análisis, y el veredicto se aplica y queda visible en la pestaña Resumen.
 
 **Guardrails.**
-- JSON con formato fijo y temperatura 0.
+- JSON con formato fijo; la reproducibilidad se asegura con la caché por contenido.
 - Se descartan los IDs que no existan.
 - Las relaciones solo pueden ir de una fuente posterior a una anterior.
 - Se rechaza cualquier cifra inventada.
@@ -145,7 +145,7 @@ ingesta (CSV + md, sha1) → relevancia (léxico económico / declaración de no
 
 ## 8. Limitaciones
 
-- Claude no es 100 % reproducible: se mitiga con temperatura 0, caché y auditoría de las reglas. Las discrepancias quedan visibles.
+- Claude no es 100 % reproducible: se mitiga con caché por contenido y auditoría de las reglas. Las discrepancias quedan visibles.
 - Sin API, el respaldo vuelve a las heurísticas léxicas, que se amplían en `lexicon.py`.
 - Un documento que mezcla dos palancas se asigna a la dominante.
 - Los pesos de impacto son supuestos de negocio explícitos, no aprendidos.
