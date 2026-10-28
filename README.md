@@ -36,7 +36,7 @@ La app corre en `http://127.0.0.1:8765` y escucha solo en tu PC.
 | **Grafo de evidencia** | Fuentes por señal con fecha, aristas *refuta* / *resuelve* y consultas a la herramienta |
 | **Matriz impacto × evidencia** | Cuadrantes: actuar, investigar, monitorear |
 | **¿Y si cambio los pesos?** | Sliders que re-rankean en vivo, para discutir supuestos de negocio |
-| **Brief .md / Imprimir PDF** | Exporta el informe de la señal |
+| **⬇ Word / .md / Imprimir PDF** | Opportunity Brief en Word (.docx) con membrete; el logo solo se incluye si existe `marca/logo.png` local |
 | **Claude ⚙** | Configura la API key, prueba la conexión y genera resúmenes ejecutivos |
 
 ## 3. Motor Claude-first (las reglas auditan)
@@ -138,7 +138,7 @@ ingesta (CSV + md, sha1) → relevancia (léxico económico / declaración de no
 | Señal | Fuentes | Clave |
 |---|---|---|
 | S1 Desviación en cobro de seguro | F01–F04 | Herramienta: Web `pendiente_de_validar` contra Sucursal `vigente`. No se cuantifica fuga |
-| S2 Comisiones de baja frecuencia | F17–F18 | No se recomienda eliminar sin conciliar ni medir materialidad |
+| S2 Comisiones y tarifas | F17–F18 | No se recomienda eliminar sin conciliar ni medir materialidad |
 | S3 Exoneración de membresía | F05–F07 | Retención contra ingreso queda como hipótesis |
 | S4 Día de pago | F08–F12 | F12 refuta a F11 (maqueta ≠ piloto); la herramienta se omite porque falta el producto |
 | Ruido | F13–F16 | Cada una se descarta citando su declaración de no-impacto |

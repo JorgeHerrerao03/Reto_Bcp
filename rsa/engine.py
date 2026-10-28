@@ -219,8 +219,20 @@ class Engine:
                 md = md.replace("## Tesis", f"## Resumen (Claude, citas validadas)\n{s['resumen_llm']}\n\n## Tesis", 1)
             (bd / f"{s['id']}_brief.md").write_text(md, encoding="utf-8")
             (bd / f"{s['id']}_traza.md").write_text(brief.trace(s, ver["log"]), encoding="utf-8")
+            try:
+                (bd / f"{s['id']}_brief.docx").write_bytes(self.docx(s["id"], ver))
+            except OSError:
+                pass
         self.save()
         report.write(self.state, self.out / "reporte.html")
+
+    def docx(self, sid, ver=None):
+        from . import docx
+        ver = ver or self.latest()
+        s = next(x for x in ver["signals"] if x["id"] == sid)
+        s = {**s, "recomendacion": brief.recomendacion(s)}
+        logo_f = AGENT_DIR / "marca" / "logo.png"
+        return docx.build(s, {f["id"]: f for f in ver["fuentes"]}, ver, logo_f.read_bytes() if logo_f.exists() else None)
 
     def save(self):
         self.state_f.write_text(json.dumps(self.state, ensure_ascii=False, indent=1), encoding="utf-8")

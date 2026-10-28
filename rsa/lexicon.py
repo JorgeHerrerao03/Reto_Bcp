@@ -62,14 +62,26 @@ GUARDRAILS = [
 # Palancas (regex): titulan señales y refuerzan el agrupamiento temático
 PALANCAS = [
     ("Posible desviación en cobro de seguro", [r"desgravamen", r"\bprimas?\b", r"rate_input"]),
-    ("Comisiones de baja frecuencia sin conciliar", [r"comision", r"tarifari", r"\btarifas?\b"]),
+    ("Comisiones y tarifas: cobro y conciliación", [r"comision", r"tarifari", r"\btarifas?\b", r"\bfees?\b"]),
     ("Exoneración de membresía: retención vs. ingreso", [r"exoneracion", r"membresia"]),
     ("Cambio de calendario / día de pago", [r"fechas? de pago", r"dias? de pago", r"calendario de pagos", r"selector de fechas"]),
 ]
+# Qué cubre cada palanca (se entrega a Claude para que agrupe bien y no invente palancas)
+PALANCA_DESC = {
+    "Posible desviación en cobro de seguro": "primas y tasas de seguros (p.ej. desgravamen), parametrización de la tasa por canal "
+        "(rate_input, anual vs. mensual, conversión/mensualización), diferencias de prima entre canales",
+    "Comisiones y tarifas: cobro y conciliación": "comisiones, fees, tarifas y cargos: cobro o no cobro, vigencia, depuración del "
+        "tarifario, conciliación con transacciones y cuentas contables, materialidad",
+    "Exoneración de membresía: retención vs. ingreso": "exoneraciones o waivers de membresía/cuotas, campañas de retención, umbrales "
+        "de consumo por segmento, canibalización e impacto en ingresos",
+    "Cambio de calendario / día de pago": "fechas o días de pago, calendario de cuotas, selector de fecha, pilotos o maquetas "
+        "asociadas, reclamos por fechas, devengo y reglas de corte",
+}
+
 # Peso de impacto por palanca (0–1): directo en ingreso > indirecto
 IMPACTO = {
     "Posible desviación en cobro de seguro": 0.9,
-    "Comisiones de baja frecuencia sin conciliar": 0.7,
+    "Comisiones y tarifas: cobro y conciliación": 0.7,
     "Exoneración de membresía: retención vs. ingreso": 0.65,
     "Cambio de calendario / día de pago": 0.45,
 }

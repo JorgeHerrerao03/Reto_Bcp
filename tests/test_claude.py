@@ -27,7 +27,7 @@ def fake_call(prompt, max_tokens=500, system=None, temperature=None):
     if prompt.startswith("Fuente "):
         low = prompt.split("Palancas económicas conocidas")[0].lower()
         ruido = any(k in low for k in ("no cambia ninguna", "no existe vínculo", "no afectará", "no se modificarán"))
-        pal = ("Comisiones de baja frecuencia sin conciliar" if re.search(r"\bfee\b|comisi|tarifa", low) else
+        pal = ("Comisiones y tarifas: cobro y conciliación" if re.search(r"\bfee\b|comisi|tarifa", low) else
                "Posible desviación en cobro de seguro" if re.search(r"desgravamen|prima|rate_input", low) else
                "Exoneración de membresía: retención vs. ingreso" if "membres" in low else
                "Cambio de calendario / día de pago" if re.search(r"fecha|calendario|día de pago", low) else None)

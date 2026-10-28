@@ -228,6 +228,23 @@ def analyze(sources, tool_runner=None, log=None, ai=None, max_comites=3):
     relevant = [s for s in sources if rel[s.id]["relevante"]]
     tf = TfIdf({s.id: s.titulo + " " + s.body + " " + " ".join((A.get(s.id) or {}).get("terminos", []))
                 for s in sources})
+    # Guardia anti-fragmentación: si Claude propone una palanca NUEVA pero el texto (o sus términos traducidos)
+    # coincide con una conocida, o la fuente es muy similar a fuentes de una palanca conocida, se usa la conocida.
+    known = {name for name, _ in L.PALANCAS}
+    for s in relevant:
+        a = A.get(s.id)
+        if not a or not a["palanca"] or a["palanca"] in known:
+            continue
+        txt = s.titulo + " " + s.body + " " + " ".join(a.get("terminos", []))
+        alt = palanca(txt)
+        if not alt:
+            sims = [(tf.cos(s.id, o.id), A[o.id]["palanca"]) for o in relevant
+                    if o.id != s.id and A.get(o.id) and A[o.id]["palanca"] in known]
+            best = max(sims, default=(0, None))
+            alt = best[1] if best[0] >= 0.15 else None
+        if alt:
+            log.append({"accion": "palanca_ajustada", "fuente": s.id, "claude": a["palanca"], "final": alt})
+            a["palanca"] = alt
     groups, edges, pal = cluster(relevant, tf, ai_pal={k: v["palanca"] for k, v in A.items()})
     log.append({"accion": "agrupar_fuentes", "grupos": groups})
 

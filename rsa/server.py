@@ -40,6 +40,22 @@ def make_handler(eng: Engine):
                                   "text/html; charset=utf-8")
             if self.path == "/api/status":
                 return self._send(200, self.status())
+            if self.path.startswith("/api/brief/") and ".docx" in self.path:
+                from urllib.parse import urlparse, parse_qs
+                u = urlparse(self.path)
+                sid = u.path.rsplit("/", 1)[-1].replace(".docx", "")
+                vi = int((parse_qs(u.query).get("v") or [len(eng.state["versiones"])])[0]) - 1
+                try:
+                    data = eng.docx(sid, eng.state["versiones"][vi])
+                except (StopIteration, IndexError):
+                    return self._send(404, {"error": "señal o versión no existe"})
+                self.send_response(200)
+                self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                self.send_header("Content-Disposition", f'attachment; filename="{sid}_brief_v{vi + 1}.docx"')
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
             if self.path.startswith("/api/brief/"):
                 sid = self.path.rsplit("/", 1)[-1].replace(".md", "")
                 f = eng.out / "briefs" / f"{sid}_brief.md"

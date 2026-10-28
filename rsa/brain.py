@@ -16,8 +16,9 @@ from pathlib import Path
 
 from . import lexicon as L
 from . import llm
+from .text import tokens
 
-PROMPT_VER = "v1"
+PROMPT_VER = "v2"
 TIPOS = {"hecho", "hipotesis", "faltante", "correccion", "advertencia"}
 RELS = {"refuta", "resuelve", "confirma"}
 PALANCAS = [p for p, _ in L.PALANCAS]
@@ -86,14 +87,18 @@ class Brain:
     def _source_prompt(self, s):
         sents = "\n".join(f"{x['sid']} | {x['texto']}" for x in s.sents)
         return (f"Fuente {s.id} · {s.fecha} · {s.tipo} · {s.area}\nTítulo: {s.titulo}\nOraciones (sid | texto):\n{sents}\n\n"
-                f"Palancas económicas conocidas: {json.dumps(PALANCAS, ensure_ascii=False)}\n"
+                "Palancas económicas conocidas (nombre: qué cubre):\n" +
+                "\n".join(f"- {k}: {v}" for k, v in L.PALANCA_DESC.items()) +
+                "\nREGLA DE PALANCA: elige SIEMPRE una palanca conocida si el tema encaja aunque sea parcialmente "
+                "(un aspecto técnico, un canal o un producto específico de esa palanca sigue siendo esa palanca). "
+                "Usa 'nueva: <nombre>' SOLO si el tema no encaja en ninguna de las cuatro.\n"
                 f"Definiciones de tipo: {DEF_TIPOS}\n"
                 "Relevante = tiene vínculo con ingresos, cobros, tarifas, precios, comisiones, costos, condiciones "
                 "comerciales o productos financieros. Es ruido si declara no tener ese vínculo o trata solo temas internos "
                 "(marca, infraestructura, bienestar, dashboards).\n"
                 "Devuelve JSON:\n"
                 '{"relevante": true|false, "motivo_ruido": "texto corto o null", "sid_ruido": "sid que lo prueba o null",'
-                ' "palanca": "una de las conocidas, o \'nueva: <nombre corto en español>\', o null",'
+                ' "palanca": "nombre EXACTO de una palanca conocida, o \'nueva: <nombre corto>\' solo si ninguna encaja, o null",'
                 ' "operacional": true si describe algo que ya ocurre en producción/transacciones reales,'
                 ' "producto": "nombre del producto o null", "canal": "Web|Sucursal|App|null", '
                 '"parametro": "rate_input|selector_dia_pago|exoneracion_membresia|null",'
@@ -112,17 +117,26 @@ class Brain:
             if isinstance(o, dict) and o.get("sid") in valid and o.get("tipo") in TIPOS:
                 ora[o["sid"]] = {"tipo": o["tipo"], "accion": bool(o.get("accion")), "razon": str(o.get("razon", ""))[:120]}
         p = d.get("palanca")
-        if isinstance(p, str) and p.strip():
-            p = p.strip()
-            p = p if p in PALANCAS else (p.split(":", 1)[1].strip().capitalize() if p.lower().startswith("nueva")
-                                         and ":" in p else None)
-        else:
-            p = None
+        p = self._map_palanca(p)
         sid_r = d.get("sid_ruido") if d.get("sid_ruido") in valid else None
         return {"relevante": bool(d.get("relevante", True)), "motivo_ruido": d.get("motivo_ruido") or "",
                 "sid_ruido": sid_r, "palanca": p, "operacional": bool(d.get("operacional")),
                 "producto": d.get("producto"), "canal": d.get("canal"), "parametro": d.get("parametro"),
                 "terminos": [str(t) for t in (d.get("terminos") or [])][:8], "oraciones": ora}
+
+    @staticmethod
+    def _map_palanca(p):
+        """Nombre exacto → conocida; nombre aproximado (≥50 % de palabras) → conocida; 'nueva: X' → X."""
+        if not isinstance(p, str) or not p.strip():
+            return None
+        p = p.strip()
+        if p in PALANCAS:
+            return p
+        if p.lower().startswith("nueva") and ":" in p:
+            return p.split(":", 1)[1].strip().capitalize() or None
+        w = set(tokens(p))
+        best = max(((len(w & set(tokens(k))) / (len(set(tokens(k))) or 1), k) for k in PALANCAS), default=(0, None))
+        return best[1] if best[0] >= 0.5 else p.capitalize()
 
     def prefetch(self, sources, workers=6):
         with ThreadPoolExecutor(workers) as ex:

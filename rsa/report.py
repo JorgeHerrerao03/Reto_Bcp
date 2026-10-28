@@ -268,7 +268,7 @@ function openSrc(id){const v=V[vi],[fid]=id.split("."),f=v.fuentes.find(x=>x.id=
 function brief(s,d){
   const ch=d&&d.cambios[s.id]; const tr={}; (ch?.transiciones||[]).forEach(t=>tr[t.sid]=t); const nw=new Set((ch?.claims_nuevos||[]).map(c=>c.sid)); const C=s.componentes;
   let h=`<div class="top"><div style="flex:1;min-width:260px"><div class="sub">${s.id} · ${s.areas.join(" · ")}</div><h2>${esc(s.titulo)}</h2><span class="pill">${esc(s.recomendacion)}</span></div>
-  <div><div class="big">${s.score}</div><div class="sub" style="text-align:right">de 100 · madurez ${s.confianza}</div><div style="text-align:right;margin-top:8px"><button class="btn sm" id="dl-md">⬇ Descargar brief</button></div></div></div>
+  <div><div class="big">${s.score}</div><div class="sub" style="text-align:right">de 100 · madurez ${s.confianza}</div><div style="text-align:right;margin-top:8px">${APP?`<a class="btn sm pri" style="text-decoration:none" href="/api/brief/${s.id}.docx?v=${V[vi].v}">⬇ Word</a> `:""}<button class="btn sm" id="dl-md">⬇ .md</button></div></div></div>
   <div class="tiles">${[["impacto","Impacto"],["evidencia","Evidencia"],["urgencia","Urgencia"]].map(([k,n])=>`<div class="tile"><span>${n} · peso ${Math.round(s.pesos[k]*100)}%</span><b>${C[k]}</b><div class="tb"><i style="width:${C[k]*100}%"></i></div></div>`).join("")}</div>
   ${C.penalizacion?`<div class="sub" style="margin:-6px 0 8px">Penalización por evidencia refutada: <b style="color:var(--ref)">−${C.penalizacion}</b></div>`:""}`;
   if(s.resumen_llm)h+=`<div class="callout ai"><h4>Resumen ejecutivo · Claude (citas validadas)</h4>${cites(esc(s.resumen_llm))}</div>`;
