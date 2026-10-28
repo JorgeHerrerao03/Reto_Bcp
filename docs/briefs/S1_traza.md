@@ -6,7 +6,7 @@
 | 2 | clasificar_relevancia | {'nucleo_economico': ['F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07', 'F08', 'F09', 'F17', 'F18'], 'ruido_explicito': ['F13', 'F14', 'F15', 'F16'], 'sin_lexico_economico': ['F10', 'F11', 'F12']} |
 | 3 | vincular_contextuales | {'fuentes': {'F10': "vinculada por palanca 'Cambio de calendario / día de pago'", 'F11': "vinculada por palanca 'Cambio de calendario / día de pago'", 'F12': "vinculada por palanca 'Cambio de calendario / día de pago'"}} |
 | 4 | agrupar_fuentes | grupo de la señal: ['F01', 'F02', 'F03', 'F04'] |
-| 5 | consulta_herramienta | args=['Credito Flexible', 'Web', 'rate_input'] · motivo: producto/canal/parámetro explícitos en fuentes · encontrado=True · [{'producto': 'Credito Flexible', 'canal': 'Web', 'parametro': 'rate_input', 'unidad_esperada': 'anual', 'valor_configurado': 'pendiente_de_validar', 'estado_produccion': 'sin_confirmacion', 'ultima_revision': '2026-09-06'}] · 3 ms |
+| 5 | consulta_herramienta | args=['Credito Flexible', 'Web', 'rate_input'] · motivo: producto/canal/parámetro explícitos en fuentes · encontrado=True · [{'producto': 'Credito Flexible', 'canal': 'Web', 'parametro': 'rate_input', 'unidad_esperada': 'anual', 'valor_configurado': 'pendiente_de_validar', 'estado_produccion': 'sin_confirmacion', 'ultima_revision': '2026-09-06'}] · 4 ms |
 | 6 | consulta_herramienta | args=['Credito Flexible', 'Sucursal', 'rate_input'] · motivo: contraste entre canales solicitado en fuentes · encontrado=True · [{'producto': 'Credito Flexible', 'canal': 'Sucursal', 'parametro': 'rate_input', 'unidad_esperada': 'anual', 'valor_configurado': 'anual', 'estado_produccion': 'vigente', 'ultima_revision': '2026-09-06'}] · 0 ms |
 
 **Fuentes consultadas:** F01, F02, F03, F04
