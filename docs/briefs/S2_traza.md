@@ -1,4 +1,4 @@
-# Traza de investigación · S2 · Comisiones de baja frecuencia sin conciliar
+# Traza de investigación · S2 · Comisiones y tarifas: cobro y conciliación
 
 | # | Acción | Detalle |
 |---|---|---|

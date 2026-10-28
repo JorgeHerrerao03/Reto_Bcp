@@ -1,4 +1,4 @@
-# Opportunity Brief · S2 · Comisiones de baja frecuencia sin conciliar
+# Opportunity Brief · S2 · Comisiones y tarifas: cobro y conciliación
 
 **Score:** 63.5 / 100 · impacto 0.7 · evidencia 0.4 · urgencia 0.8  
 **Madurez de evidencia:** baja · **Áreas:** Banca Mayorista, Finanzas Mayorista  
