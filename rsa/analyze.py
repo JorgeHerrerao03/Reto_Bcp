@@ -102,11 +102,16 @@ def contradictions(claims, src_by_id):
     return out
 
 
+def is_row(cl):
+    """Fila de una tabla incorporada: es evidencia citable, pero no cuenta como afirmación independiente."""
+    return cl["texto"].startswith("Fila ") and " · " in cl["texto"][:12]
+
+
 # ---------- scoring ----------
 def score(sig: dict, src_by_id, tool_results=()):
     n_f = len(sig["fuentes"])
     areas = {src_by_id[f].area for f in sig["fuentes"]}
-    c = Counter(cl["tipo"] for cl in sig["claims"] if not cl.get("superada"))
+    c = Counter(cl["tipo"] for cl in sig["claims"] if not cl.get("superada") and not is_row(cl))
     tot = sum(c.values()) or 1
     impacto = L.IMPACTO.get(sig["palanca"], 0.5)
     n_conf = sum(1 for x in sig["contradicciones"] if x["relacion"] == "confirma")
@@ -138,7 +143,13 @@ def score(sig: dict, src_by_id, tool_results=()):
 
 def guardrails(sig):
     t = norm(" ".join(cl["texto"] for cl in sig["claims"]))
-    return [msg for pat, msg in L.GUARDRAILS if re.search(pat, t)]
+    out = [msg for pat, msg in L.GUARDRAILS if re.search(pat, t)]
+    calc = sorted({cl["fuente"] for cl in sig["claims"] if cl["texto"].startswith("Cálculo (código)")})
+    if calc:  # hay datos tabulados: se cuantifica SOLO sobre la muestra, con cálculo verificable
+        out = [m for m in out if not m.startswith("No cuantifico")]
+        out.insert(0, f"Cuantifico solo sobre la muestra tabulada ({', '.join(calc)}), con cálculo hecho por código; "
+                      "no extrapolo a toda la cartera ni estimo la pérdida total.")
+    return out
 
 
 def next_steps(sig):
@@ -266,8 +277,9 @@ def analyze(sources, tool_runner=None, log=None, ai=None, max_comites=3):
         p = p[0][0] if p else None
         titulo = p or "Señal: " + ", ".join(tf.top_terms(g, 3))
 
-        rules_rel = contradictions(claims, by_id)
-        cl_rel = ai.relations(titulo, claims) if ai and A else None
+        core_claims = [c for c in claims if not is_row(c)]
+        rules_rel = contradictions(core_claims, by_id)
+        cl_rel = ai.relations(titulo, core_claims) if ai and A else None
         cautelas, rel_disp = [], []
         if cl_rel is not None:
             contra, cautelas = list(cl_rel["relaciones"]), cl_rel["cautelas"]
@@ -276,7 +288,7 @@ def analyze(sources, tool_runner=None, log=None, ai=None, max_comites=3):
             disputes = [("claude", x) for x in contra if x["relacion"] in ("refuta", "resuelve") and (x["de"], x["a"]) not in kr]
             disputes += [("reglas", x) for k, x in kr.items() if k not in ks]
             disputes.sort(key=lambda d: by_id[d[1]["de"].split(".")[0]].fecha, reverse=True)
-            txt = {c["sid"]: c["texto"] for c in claims}
+            txt = {c["sid"]: c["texto"] for c in core_claims}
             for origen, x in disputes:
                 item = {"de": x["de"], "a": x["a"], "relacion": x["relacion"], "propone": origen, "comite": None}
                 keep = origen == "claude"

@@ -104,9 +104,14 @@ def build(sig, fuentes: dict, ver: dict, logo: bytes | None = None) -> bytes:
         body += [_bullet(m) for m in sig["no_afirmo"]]
     for t in ("hecho", "hipotesis", "faltante", "correccion", "advertencia"):
         xs = [c for c in sig["claims"] if c["tipo"] == t]
+        rows = [c for c in xs if c["texto"].startswith("Fila ")]
+        xs = [c for c in xs if not c["texto"].startswith("Fila ")] + rows[:3]
         if not xs:
             continue
-        body.append(_h(f"{ETQ[t]} ({len(xs)})"))
+        body.append(_h(f"{ETQ[t]} ({len(xs) + max(0, len(rows) - 3)})"))
+        if len(rows) > 3:
+            body.append(_p(_run(f"Incluye {len(rows)} filas de tabla; se muestran 3 (detalle completo en la fuente "
+                                f"{rows[0]['fuente']}).", i=True, color=GREY, size=18), ind=280))
         for c in xs:
             extra = f"{c['superada']} por [{c['por']}]" if c.get("superada") else (
                 f"confirmada por [{c['confirmada_por']}]" if c.get("confirmada_por") else None)

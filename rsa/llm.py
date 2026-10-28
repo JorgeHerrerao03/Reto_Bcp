@@ -96,10 +96,14 @@ SYS = ("Eres analista de Revenue Optimization en un banco. Usas SOLO la evidenci
        "no inventas ni estimas cifras y no recomiendas eliminar nada sin evidencia. Respondes en español.")
 
 
-def _check(txt, valid):
+def _check(txt, valid, texts=None):
+    """Citas válidas y sin cifras inventadas: una cifra solo se acepta si aparece literalmente en la evidencia
+    (p.ej. un 'Cálculo (código)' de una tabla)."""
     cited = set(re.findall(r"\[(F\d+\.\d+)\]", txt))
     bad = sorted(cited - set(valid))
-    return cited, bad, bool(cited) and not bad and not NUM.search(txt)
+    blob = " ".join(texts or [])
+    nums_ok = all(re.match(r"\d[\d.,]*", m.group(0)).group(0).rstrip(".,") in blob for m in NUM.finditer(txt))
+    return cited, bad, bool(cited) and not bad and nums_ok
 
 
 def _claims(sig):

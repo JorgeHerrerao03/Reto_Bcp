@@ -26,7 +26,7 @@ La app corre en `http://127.0.0.1:8765` y escucha solo en tu PC.
 
 | Función | Detalle |
 |---|---|
-| **＋ Añadir fuente** | Arrastras un `.md`, `.txt` o `.docx`, o pegas texto. El ID y la fecha se autocompletan |
+| **＋ Añadir fuente** | Arrastras un `.md`, `.txt`, `.docx` (incluye tablas), `.xlsx`, `.csv`, `.pdf` o una imagen, o pegas texto. El ID y la fecha se autocompletan |
 | **Previsualizar impacto** | Muestra qué cambiaría *antes* de incorporar: scores, refutaciones y la clasificación de cada oración. No guarda nada |
 | **Segunda opinión de Claude** | Claude propone relaciones (refuta, confirma, resuelve) entre la fuente nueva y la evidencia existente. Solo se aceptan IDs que existen |
 | **Máquina del tiempo** | v1 → vN, con ▲▼ por señal, transiciones (hipótesis → refutada) y un resumen de "qué cambió" |
@@ -77,6 +77,22 @@ Con API key configurada, **Claude decide siempre**: entiende español informal, 
 | `F23_correccion_informal.md` | No ve la corrección; S1 sube | Refuta F01.2 ("no era así… era QA") |
 | `F24_aprobacion_en_ingles.md` | La descarta como ruido | Va a Exoneración; resuelve "sin aprobación formal" (F05.2) |
 
+## 3b. Adjuntos: Excel, CSV, imágenes y PDF
+
+| Formato | Cómo se lee | Requiere Claude |
+|---|---|---|
+| `.xlsx` / `.csv` / `.tsv` / tablas en `.docx` | Lector propio (stdlib). Cada fila es una oración citable (`F19.8` = fila 1) | No |
+| Imagen (`.png`, `.jpg`, `.webp`) / `.pdf` | Claude transcribe literalmente, con las tablas en formato `Fila n · col: valor` | Sí |
+
+- **Las cifras las calcula el código, nunca el LLM:** totales, promedios, mínimos, máximos y promedios por grupo (por ejemplo, por canal), con razón y diferencia porcentual entre dos grupos. Se insertan como oraciones `Cálculo (código) · …` citables.
+- Con datos tabulados, "No cuantifico" se reemplaza por **"Cuantifico solo sobre la muestra tabulada…; no extrapolo a toda la cartera"**.
+- Claude solo puede usar en sus resúmenes cifras que aparezcan literalmente en la evidencia; si usa otra, el resumen se descarta.
+- Las filas de una tabla no inflan el score. Cuentan como evidencia, no como afirmaciones independientes.
+
+**Casos de prueba** (`demo/adjuntos/`, datos ficticios):
+- `adjunto_F04_muestra.xlsx` / `.csv`: el "archivo adjunto" que faltaba en F04. Son 40 operaciones en pares con el mismo saldo; la prima Web es el **8,29 %** de la de Sucursal (≈ 1/12, que es lo esperable si se cargó la tasa mensual como anual). Con reglas resuelve F04.5. Con Claude debería resolver además F04.4 y confirmar F01.2.
+- `captura_parametros_produccion.png`: captura de "Producción" con rate_input Web 0.00054 contra Sucursal/App 0.0065. Requiere Claude.
+
 ## 4. GitHub: reporte que se actualiza solo
 
 El reporte público vive en `docs/index.html` (GitHub Pages). Para agregar evidencia sin instalar nada:
@@ -104,7 +120,7 @@ python -m rsa preguntar "¿hay piloto productivo?"  [--llm antes del comando]
 python -m rsa consultar "Credito Flexible" Web rate_input
 python -m rsa sync fuentes_nuevas         # lo que corre la Action
 python -m rsa demo --caso todos
-python -m unittest discover -s tests -t . -v      # 21 tests (núcleo en modo reglas + modo Claude con stub)
+python -m unittest discover -s tests -t . -v      # 24 tests (núcleo en modo reglas + modo Claude con stub)
 ```
 
 ## 6. Arquitectura

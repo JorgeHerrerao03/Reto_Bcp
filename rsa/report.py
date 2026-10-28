@@ -178,7 +178,7 @@ textarea{min-height:120px;resize:vertical}
 <div class="modal" id="m-add"><div class="card"><button class="x" data-close>✕</button><h2>Añadir fuente</h2>
 <div class="sub">Sube un archivo o pega el texto. Antes de guardar verás qué cambiaría.</div>
 <div class="step"><b>1</b>Contenido</div>
-<div class="drop" id="drop">📄 Arrastra aquí un .md, .txt o .docx — o haz clic para elegir<input type="file" id="file" accept=".md,.txt,.docx" hidden></div>
+<div class="drop" id="drop">📄 Arrastra aquí un archivo — .md · .txt · .docx · .xlsx · .csv · .pdf · imagen — o haz clic para elegir<input type="file" id="file" accept=".md,.txt,.docx,.xlsx,.xlsm,.csv,.tsv,.pdf,.png,.jpg,.jpeg,.webp" hidden></div>
 <div class="or">o pega el texto</div><textarea id="f-texto" placeholder="Ej.: Tecnología aclara que la captura revisada correspondía al entorno de certificación…"></textarea>
 <div class="sub" id="f-file" style="margin-top:6px"></div>
 <div class="step"><b>2</b>Datos de la fuente <span class="sub" style="font-weight:600">(si el archivo ya trae encabezado, se respeta)</span></div>
@@ -274,9 +274,11 @@ function brief(s,d){
   if(s.resumen_llm)h+=`<div class="callout ai"><h4>Resumen ejecutivo · Claude (citas validadas)</h4>${cites(esc(s.resumen_llm))}</div>`;
   if(s.no_afirmo.length)h+=`<div class="callout no"><h4>Lo que NO afirmo</h4><ul>${s.no_afirmo.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`;
   for(const [t,n,open] of [["hecho","Hechos confirmados",1],["hipotesis","Hipótesis",1],["faltante","Datos faltantes",0],["correccion","Correcciones",1],["advertencia","Advertencias",0]]){const xs=s.claims.filter(c=>c.tipo===t);if(!xs.length)continue;
-    h+=`<details class="grp" ${open||xs.some(c=>nw.has(c.sid)||c.superada)?"open":""}><summary>${n}<span class="cnt">${xs.length}</span></summary>${xs.map(c=>`<div class="cl ${c.superada?"sup":""} ${nw.has(c.sid)?"nuevo flash":""}">
+    const rows=xs.filter(c=>/^Fila \d+ ·/.test(c.texto)), xs2=xs.filter(c=>!/^Fila \d+ ·/.test(c.texto)).concat(rows.slice(0,3));
+    const more=rows.length>3?`<div class="sub" style="padding:4px 0 8px 20px">… y ${rows.length-3} filas más de la tabla · ${cites("["+rows[0].fuente+"]")} para ver todas</div>`:"";
+    h+=`<details class="grp" ${open||xs.some(c=>nw.has(c.sid)||c.superada)?"open":""}><summary>${n}<span class="cnt">${xs.length}</span></summary>${xs2.map(c=>`<div class="cl ${c.superada?"sup":""} ${nw.has(c.sid)?"nuevo flash":""}">
     <div>${c.superada?`<span class="tag t-${st(c)}">${ET[st(c)]}</span>`:""}<span class="tx" title="${esc(c.razon||"")}">${esc(c.texto)}</span>${c.tipo_reglas&&c.decide==="claude"&&c.tipo_reglas!==c.tipo?` <span class="tag t-advertencia" title="Las reglas la clasificaron distinto">⚠ reglas: ${ET[c.tipo_reglas]}</span>`:""}${c.confirmada_por?` <span class="tag t-hecho">confirmada por ${cites("["+c.confirmada_por+"]")}</span>`:""}${c.superada?` <span class="trans">por ${cites("["+c.por+"]")}</span>`:""}${tr[c.sid]?` <span class="trans">(cambió: ${ET[tr[c.sid].de]} → ${ET[tr[c.sid].a]})</span>`:""}</div>
-    <button class="cite" data-src="${c.sid}">[${c.sid}]</button></div>`).join("")}</details>`}
+    <button class="cite" data-src="${c.sid}">[${c.sid}]</button></div>`).join("")}${more}</details>`}
   if(s.consultas.length)h+=`<details class="grp" open><summary>Consulta a la herramienta<span class="cnt">${s.consultas.length}</span></summary>${s.consultas.map(c=>`<div class="tool"><span class="mono">consultar_parametros.py ${c.args.map(a=>"'"+esc(a)+"'").join(" ")}</span><div>${cites(esc(c.lectura))}</div></div>`).join("")}<div class="warn">⚠ ${esc(s.consultas[0].resultado.advertencia||"")}</div></details>`;
   if(s.proximos_pasos.length)h+=`<details class="grp" open><summary>Próximos pasos<span class="cnt">${s.proximos_pasos.length}</span></summary><ol class="steps">${s.proximos_pasos.map(p=>`<li>${esc(p.texto)} ${cites("["+p.sid+"]")}</li>`).join("")}</ol></details>`;
   const A=s.auditoria;if(A&&A.motor==="claude"){const rd=A.relaciones_en_disputa||[];const cm=(V[vi].comites||[]).filter(c=>s.claims.some(x=>c.objeto.includes(x.sid)));
@@ -360,6 +362,7 @@ async function preview(){$("#prev-res").innerHTML='<div class="res sub">Analizan
   try{$("#prev-res").innerHTML=`<div class="res sub">${ST?.motor==="claude"?"Claude está analizando la fuente y la evidencia relacionada…":"Analizando…"}</div>`;PREV=await api("/api/preview",payload())}catch(e){$("#prev-res").innerHTML=`<div class="res">⚠ ${esc(e.message)}</div>`;PREV=null;$("#b-inc").disabled=true;return}
   const p=PREV,f=p.fuente;let h=`<div class="res"><b>${f.id}</b> · ${f.fecha} · ${esc(f.tipo)} · ${esc(f.area)} · ${esc(f.titulo)}`;
   h+=p.descartada?`<div class="callout no" style="margin:10px 0"><h4>Se descartaría como ruido</h4>${esc(p.descartada.motivo)}</div>`:"";
+  h+=`<details style="margin-top:10px"><summary class="sub" style="cursor:pointer;font-weight:700">Contenido extraído (lo que leerá el agente)</summary><pre class="mono" style="white-space:pre-wrap;max-height:220px;overflow:auto;background:var(--soft);padding:10px;border-radius:10px;font-size:12px">${esc(p.markdown)}</pre></details>`;
   h+=`<h3 class="sect" style="margin-top:14px">Qué cambiaría</h3><ul>${(p.diff?.explicacion||[]).map(l=>`<li>${esc(l)}</li>`).join("")||"<li>Sin cambios materiales</li>"}</ul>`;
   if(p.clasificacion.length)h+=`<h3 class="sect">Cómo se clasificó cada oración</h3>${p.clasificacion.map(c=>`<div class="hit"><span class="tag t-${c.tipo}">${ET[c.tipo]}</span><span class="mono sub">${c.sid}</span> ${esc(c.texto)}${c.razon?`<div class="sub">Claude: ${esc(c.razon)}${c.tipo_reglas&&c.tipo_reglas!==c.tipo?` · <b style="color:var(--hip)">reglas decían: ${ET[c.tipo_reglas]}</b>`:""}</div>`:""}</div>`).join("")}`;
   if(p.auditoria_relevancia?.length)h+=p.auditoria_relevancia.map(a=>`<div class="callout ai"><h4>Claude vs. reglas · relevancia</h4>Claude: <b>${a.claude?"relevante":"ruido"}</b> · reglas: <b>${a.reglas?"relevante":"ruido"}</b>${a.comite!==null?` · comité: <b>${a.comite?"relevante":"ruido"}</b>`:""}</div>`).join("");

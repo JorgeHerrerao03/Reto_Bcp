@@ -23,6 +23,12 @@ FYI, the onboarding fee is not being charged in the digital channel since the la
 def fake_call(prompt, max_tokens=500, system=None, temperature=None):
     """Stub determinístico que imita el contrato JSON de cada tipo de llamada."""
     meta = {"modelo": "stub", "tokens": {"input_tokens": 100, "output_tokens": 50}, "costo_usd": 0.00003, "ms": 1}
+    if isinstance(prompt, list):  # transcripción de imagen/PDF
+        return json.dumps({"titulo": "Parámetros por canal (captura)", "texto":
+                           "Captura de pantalla de Administración de parámetros · Crédito Flexible · PRODUCCIÓN\n"
+                           "Fila 1 · Canal: Web | Parámetro: rate_input | Valor: 0.00054 | Unidad esperada: anual\n"
+                           "Fila 2 · Canal: Sucursal | Parámetro: rate_input | Valor: 0.0065 | Unidad esperada: anual\n"
+                           "Fila 3 · Canal: App | Parámetro: rate_input | Valor: 0.0065 | Unidad esperada: anual"}), meta
     sids = re.findall(r"^(F\d+\.\d+) \|", prompt, re.M)
     if prompt.startswith("Fuente "):
         low = prompt.split("Palancas económicas conocidas")[0].lower()
@@ -107,6 +113,15 @@ class ClaudeFirst(unittest.TestCase):
         v2 = self.eng.run()
         self.assertEqual(v2["motor"]["llamadas"], 0)
         self.assertGreater(v2["motor"]["cache"], 0)
+
+    def test_imagen_transcrita_con_calculo(self):
+        self.eng.run()
+        img = open(os.path.join(AGENT_DIR, "demo", "adjuntos", "captura_parametros_produccion.png"), "rb").read()
+        md = self.eng.build_md(data=img, filename="captura.png", meta={"area": "Tecnología"})
+        self.assertIn("transcrito por Claude", md)
+        self.assertIn("Cálculo (código) · Valor:", md)   # estadística recalculada por código
+        p = self.eng.preview(md)
+        self.assertTrue(any("Posible desviación" in s["titulo"] for s in p["ranking"]))
 
     def test_fallback_sin_key(self):
         e = Engine(out=os.path.join(self.tmp.name, "out2"), solo_reglas=True)

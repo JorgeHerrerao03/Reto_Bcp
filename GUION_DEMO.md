@@ -24,3 +24,12 @@ Antes de empezar: doble clic en `Iniciar_RevenueSignals.bat` y luego **Reiniciar
 1. Primero muestra el contraste: corre en una terminal `python -m rsa --solo-reglas run --reset` y luego `python -m rsa --solo-reglas incorporar demo\dificiles\F23_correccion_informal.md`. Las reglas no ven la corrección.
 2. En la app, que usa Claude: **＋ Añadir fuente** con el mismo archivo → **Previsualizar**. Muestra "Cómo se clasificó cada oración" (razón de Claude, "⚠ reglas decían…") y el **comité** si lo hubo.
 3. Frase: *"Claude interpreta el lenguaje real, las reglas auditan, y si discrepan debate un comité con juez. El score es determinístico y todo cita la oración que lo sustenta."*
+
+## Si te entregan "el adjunto de F04" (Excel, CSV o foto)
+
+1. **＋ Añadir fuente** → arrastra el archivo → Título: "Adjunto F04: …", Área: Operaciones → **Previsualizar**.
+2. Abre **"Contenido extraído"**: cada fila tiene su ID y los cálculos dicen *(código)*.
+3. Frase: *"El agente no estima: el código calcula sobre la muestra y Claude solo interpreta cifras que ya existen en la evidencia. Por eso ahora sí cuantifica, pero solo sobre la muestra y sin extrapolar."*
+4. Muestra cómo el faltante F04.4/F04.5 pasa a **resuelto** y el cambio de score.
+
+Para ensayarlo: `demo\adjuntos\adjunto_F04_muestra.xlsx` y `demo\adjuntos\captura_parametros_produccion.png`.

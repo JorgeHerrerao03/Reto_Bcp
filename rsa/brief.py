@@ -40,8 +40,13 @@ def render(sig, sources) -> str:
                          ("faltante", "Datos faltantes / pendientes"), ("advertencia", "Advertencias metodológicas"),
                          ("correccion", "Correcciones")):
         xs = by(tipo)
+        rows = [c for c in xs if c["texto"].startswith("Fila ")]
+        xs = [c for c in xs if not c["texto"].startswith("Fila ")] + rows[:3]
         if xs:
-            L += [f"## {titulo}"] + [_q(c) for c in xs] + [""]
+            L += [f"## {titulo}"] + [_q(c) for c in xs]
+            if len(rows) > 3:
+                L.append(f"> … y {len(rows) - 3} filas más de la tabla (ver fuente {rows[0]['fuente']})")
+            L.append("")
     sup = [c for c in sig["claims"] if c.get("superada")]
     if sig["contradicciones"] or sup:
         L += ["## Contradicciones y actualizaciones"]

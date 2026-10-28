@@ -210,8 +210,30 @@ class Brain:
         txt = (d or {}).get("resumen", "") if isinstance(d, dict) else ""
         if not txt:
             return None
-        _, bad, ok = llm._check(txt, [c["sid"] for c in sig["claims"]])
+        _, bad, ok = llm._check(txt, [c["sid"] for c in sig["claims"]], [c["texto"] for c in sig["claims"]])
         return txt if ok else None
+
+    # ---------- 5. transcripción de imagen / PDF ----------
+    def transcribe(self, data: bytes, media_type: str, filename: str):
+        import base64
+        if len(data) > 4_500_000:
+            raise ValueError("Archivo demasiado grande para transcribir (máx. ~4.5 MB)")
+        kind = "document" if media_type == "application/pdf" else "image"
+        content = [{"type": kind, "source": {"type": "base64", "media_type": media_type,
+                                             "data": base64.b64encode(data).decode()}},
+                   {"type": "text", "text": (
+                       f"Transcribe fielmente el contenido de '{filename}' para usarlo como fuente de evidencia.\n"
+                       "Reglas: copia el texto literal (cualquier idioma); NO interpretes, NO resumas, NO agregues datos. "
+                       "Tablas: una línea por fila con el formato 'Fila n · columna: valor | columna: valor'. "
+                       "Capturas de sistema: primera línea 'Captura de pantalla de <sistema o pantalla>', luego una línea "
+                       "por campo visible 'campo: valor'. Marca [ilegible] lo que no se pueda leer.\n"
+                       'JSON: {"titulo":"título corto en español","texto":"transcripción con saltos de línea \\n"}')}]
+        d = self._call("transcripcion", {"sha": hashlib.sha1(data).hexdigest(), "mt": media_type}, content, 4000, filename)
+        self.save()
+        if not isinstance(d, dict) or not str(d.get("texto", "")).strip():
+            err = next((e.get("error") for e in reversed(self.events) if "fallo" in e.get("accion", "")), "")
+            raise ValueError("Claude no pudo transcribir el archivo" + (f": {err}" if err else ""))
+        return str(d.get("titulo") or "").strip(), str(d["texto"]).strip()
 
     def motor(self):
         return {"modo": "claude", "modelo": self.model, **self.stats, "costo_usd": round(self.stats["costo_usd"], 5)}

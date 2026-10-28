@@ -28,6 +28,20 @@ def default_paquete() -> Path:
     raise FileNotFoundError("No se encontró el paquete; usa --paquete RUTA")
 
 
+def _table_stats_from_rows(txt: str) -> str:
+    """Si la transcripción trae filas 'Fila n · col: val | ...', se recalculan las estadísticas con código."""
+    import re as _re
+    from .tables import stats
+    rows = [l for l in txt.splitlines() if _re.match(r"\s*Fila \d+ ·", l)]
+    if len(rows) < 2:
+        return txt
+    recs = [dict(kv.split(":", 1) for kv in l.split("·", 1)[1].split("|") if ":" in kv) for l in rows]
+    header = list(dict.fromkeys(k.strip() for r in recs for k in r))
+    grid = [[next((v.strip() for k, v in r.items() if k.strip() == h), "") for h in header] for r in recs]
+    calc = stats(header, grid)
+    return "\n".join(calc + [txt]) if calc else txt
+
+
 def _jac(a, b):
     a, b = set(a), set(b)
     return len(a & b) / len(a | b) if a | b else 0
@@ -74,7 +88,20 @@ class Engine:
         if path:
             path = Path(path)
             data, filename = path.read_bytes(), path.name
-        return to_markdown(raw_text(filename, data), meta or {}, self.next_id(), filename)
+        meta = dict(meta or {})
+        ai = self.brain()
+
+        def transcribe(raw, mt, fname):
+            if not ai:
+                raise ValueError("Para leer imágenes o PDF se necesita Claude (⋯ → Conectar Claude)")
+            titulo, txt = ai.transcribe(raw, mt, fname)
+            if titulo and not meta.get("titulo"):
+                meta["titulo"] = titulo
+            txt = _table_stats_from_rows(txt)
+            kind = "PDF" if mt == "application/pdf" else "imagen"
+            return f"Contenido transcrito por Claude desde {kind} '{fname}'; verificar contra el original antes de actuar.\n{txt}"
+
+        return to_markdown(raw_text(filename, data, transcribe), meta, self.next_id(), filename)
 
     def _parse_text(self, md):
         with tempfile.TemporaryDirectory() as d:
@@ -281,6 +308,11 @@ def diff(prev, cur) -> dict:
             for t in trans:
                 out["explicacion"].append(f"  [{t['sid']}] {t['de']} → {t['a']}" + (f" por [{t['por']}]" if t["por"]
                                                                                     else ""))
-            for n in nuevos:
-                out["explicacion"].append(f"  + [{n['sid']}] {n['tipo']}: «{n['texto'][:110]}»")
+            filas = [n for n in nuevos if n["texto"].startswith("Fila ") and " · " in n["texto"][:12]]
+            for n in [n for n in nuevos if n not in filas]:
+                lim = 300 if n["texto"].startswith("Cálculo") else 110
+                out["explicacion"].append(f"  + [{n['sid']}] {n['tipo']}: «{n['texto'][:lim]}»")
+            if filas:
+                out["explicacion"].append(f"  + {len(filas)} filas de tabla como evidencia citable "
+                                          f"([{filas[0]['sid']}] … [{filas[-1]['sid']}])")
     return out

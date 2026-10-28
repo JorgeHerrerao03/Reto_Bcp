@@ -136,6 +136,23 @@ class App(unittest.TestCase):
         self.assertEqual(self.eng.state["incorporadas"], ["F19", "F20", "F21"])
         self.assertEqual(len(self.eng.state["versiones"]), 4)
 
+    def test_excel_y_csv(self):
+        from rsa.tables import table_text
+        for f in ("adjunto_F04_muestra.xlsx", "adjunto_F04_muestra.csv"):
+            txt = table_text(f, (AGENT_DIR / "demo" / "adjuntos" / f).read_bytes())
+            self.assertIn("Web equivale al 8.29% de Sucursal", txt)
+        md = self.eng.build_md(path=AGENT_DIR / "demo" / "adjuntos" / "adjunto_F04_muestra.xlsx",
+                               meta={"titulo": "Adjunto F04", "area": "Operaciones", "fecha": "2026-09-26"})
+        v = self.eng.incorporar(md=md)
+        s1 = next(s for s in v["signals"] if "seguro" in s["titulo"])
+        self.assertIn("F19", s1["fuentes"])
+        self.assertTrue(s1["no_afirmo"][0].startswith("Cuantifico solo sobre la muestra"))
+        self.assertLess(s1["conteo"].get("hecho", 0), 20)          # las filas no inflan el conteo
+
+    def test_imagen_sin_claude(self):
+        with self.assertRaises(ValueError):
+            self.eng.build_md(path=AGENT_DIR / "demo" / "adjuntos" / "captura_parametros_produccion.png")
+
     def test_busqueda(self):
         from rsa.search import search
         hits = search(self.eng.latest(), "maqueta selector de fechas")

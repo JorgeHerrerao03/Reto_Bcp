@@ -31,8 +31,14 @@ def tokens(s: str):
 
 
 def sentences(text: str):
-    text = re.sub(r"\s+", " ", text).strip()
-    return [p.strip() for p in re.split(r"(?<=[.;!?])\s+(?=[A-ZÁÉÍÓÚÑ«\"])", text) if p.strip()]
+    """Una línea nunca se une con la siguiente (filas de tabla = una oración cada una); dentro de la línea se
+    separa por puntuación + mayúscula. Para párrafos de una línea es idéntico al comportamiento previo."""
+    out = []
+    for line in text.splitlines():
+        line = re.sub(r"\s+", " ", line).strip()
+        if line:
+            out += [p.strip() for p in re.split(r"(?<=[.;!?])\s+(?=[A-ZÁÉÍÓÚÑ«\"])", line) if p.strip()]
+    return out
 
 
 class TfIdf:
