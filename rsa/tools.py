@@ -46,6 +46,14 @@ def plan(sig) -> dict:
     pos = [(m.start(), v) for k, v in L.CANALES.items() for m in [re.search(rf"\b{k}\b", t)] if m]
     canal = min(pos)[1] if pos else None  # canal mencionado primero = canal objeto de la señal
     param = next((k for k, al in L.PARAMETROS.items() if any(a in t for a in al)), None)
+    # Respaldo: entidades extraídas por Claude (texto informal o en inglés), solo si existen en el catálogo
+    for e in sig.get("entidades_ai") or []:
+        p_ai = norm(str(e.get("producto") or ""))
+        prod = prod or next((p for p in L.PRODUCTOS if p and p in p_ai), None)
+        c_ai = str(e.get("canal") or "")
+        canal = canal or (c_ai if c_ai in L.CANALES.values() else None)
+        x_ai = str(e.get("parametro") or "")
+        param = param or (x_ai if x_ai in L.PARAMETROS else None)
     faltan = [n for n, v in (("producto", prod), ("canal", canal), ("parametro", param)) if not v]
     contraste = L.CANAL_CONTRASTE.get(canal) if re.search(r"otros canales|entre canales", t) else None
     return {"producto": TOOL_NAMES.get(prod, prod), "canal": canal, "parametro": param, "faltan": faltan,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import threading
 import traceback
 import webbrowser
@@ -48,7 +49,8 @@ def make_handler(eng: Engine):
 
         def status(self):
             return {"versiones": len(eng.state["versiones"]), "incorporadas": eng.state["incorporadas"],
-                    "next_id": eng.next_id(), "llm": llm.status()}
+                    "next_id": eng.next_id(), "llm": llm.status(),
+                    "motor": eng.motor_mode()}
 
         def do_POST(self):
             n = int(self.headers.get("Content-Length") or 0)
@@ -76,14 +78,14 @@ def make_handler(eng: Engine):
             if b.get("markdown"):
                 return b["markdown"]
             data = base64.b64decode(b["b64"]) if b.get("b64") else b.get("texto", "")
-            return eng.build_md(data=data, filename=b.get("filename", ""), meta=b.get("meta") or {})
+            md = eng.build_md(data=data, filename=b.get("filename", ""), meta=b.get("meta") or {})
+            sid = eng._parse_text(md).id
+            if sid in {s.id for s in eng.sources()}:  # ID ocupado (p.ej. otro F19) → siguiente libre
+                md = re.sub(r"^\*\*ID:\*\* .*$", f"**ID:** {eng.next_id()}", md, count=1, flags=re.M)
+            return md
 
         def preview(self, b):
-            eng.use_llm = bool(b.get("llm")) and llm.status()["configurada"]
-            try:
-                return eng.preview(self._md(b))
-            finally:
-                eng.use_llm = False
+            return eng.preview(self._md(b))
 
         def incorporar(self, b):
             v = eng.incorporar(md=self._md(b))
@@ -126,11 +128,7 @@ def make_handler(eng: Engine):
             return llm.test()
 
         def resumenes(self, b):
-            eng.use_llm = True
-            try:
-                v = eng.run(evento="resúmenes con Claude")
-            finally:
-                eng.use_llm = False
+            v = eng.run(evento="re-análisis con Claude")
             return {"ok": True, "aceptados": sum(1 for s in v["signals"] if s.get("resumen_llm")),
                     "total": len(v["signals"])}
 

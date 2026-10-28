@@ -1,4 +1,7 @@
-"""Evals contra las trampas del paquete. Ejecutar: python -m unittest -v"""
+"""Evals contra las trampas del paquete. Ejecutar: python -m unittest discover -s tests -t . -v
+Los tests del núcleo corren en modo reglas (reproducible, sin API); test_claude.py prueba el modo Claude con un stub."""
+import os
+os.environ["RSA_MODO"] = "reglas"
 import re
 import tempfile
 import unittest

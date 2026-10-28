@@ -8,7 +8,7 @@ Agente que lee fuentes internas desordenadas (correos, Teams, actas) y:
 - produce un **Opportunity Brief** por señal, con un apartado de **"Lo que NO afirmo"**;
 - incorpora evidencia nueva en vivo y explica **qué cambió y por qué**.
 
-Python ≥ 3.9 · **cero dependencias** · funciona offline · Claude es opcional.
+Python ≥ 3.9 · **cero dependencias** · **Claude decide y las reglas auditan** · si no hay API, funciona offline solo con reglas.
 
 ---
 
@@ -39,26 +39,43 @@ La app corre en `http://127.0.0.1:8765` y escucha solo en tu PC.
 | **Brief .md / Imprimir PDF** | Exporta el informe de la señal |
 | **Claude ⚙** | Configura la API key, prueba la conexión y genera resúmenes ejecutivos |
 
-## 3. Claude (opcional)
+## 3. Motor Claude-first (las reglas auditan)
 
-1. Crea una API key en **console.anthropic.com → API Keys** y carga créditos. Una suscripción Claude Pro/Max **no** incluye acceso a la API.
-2. Configúrala de una de estas formas. La key se guarda en `.env`, que está excluido de git.
-   - En la app: botón **Claude ⚙**, luego Guardar y Probar conexión.
-   - Por terminal: `python -m rsa config --key sk-ant-...`
-   - Copiando `.env.example` como `.env`.
-3. Modelo por defecto: `claude-haiku-5-5`. Se cambia con `RSA_MODEL`.
+Con API key configurada, **Claude decide siempre**: entiende español informal, spanglish e inglés. Sin key o si la API falla, el sistema usa automáticamente el motor de reglas y lo indica en pantalla.
 
-| Uso de Claude | Guardrail |
-|---|---|
-| Resumen ejecutivo por señal | Cada `[Fxx.n]` debe existir; si aparece una cifra inventada o una cita inválida, el resumen se descarta |
-| Preguntar a las fuentes | Solo puede usar la evidencia recuperada; se marca si las citas son válidas |
-| Segunda opinión sobre una fuente nueva | Solo relaciones con IDs reales; es una sugerencia, no cambia el análisis determinístico |
+| Paso | Quién decide | Quién audita |
+|---|---|---|
+| ¿Es ruido o tiene relevancia económica? | Claude | Reglas (léxico) |
+| ¿A qué señal pertenece? | Claude (palanca, incluso si es una palanca nueva) | TF-IDF |
+| Tipo de cada oración: hecho / hipótesis / faltante / corrección / advertencia | Claude, con su razón | Reglas: ⚠ si discrepan |
+| Qué refuta, resuelve o **confirma** a qué | Claude | Reglas: las disputas van al comité |
+| Producto / canal / parámetro para la herramienta | Reglas; Claude como respaldo, solo valores del catálogo | — |
+| Score 0–100 | **Fórmula determinística** sobre el resultado final | — |
+| Resumen ejecutivo y cautelas ("Lo que NO afirmo") | Claude + reglas | Citas validadas |
 
-**Costo** (Haiku 5.5: USD 0.10 / 0.50 por millón de tokens de entrada / salida):
-- un resumen cuesta ≈ USD 0.0002;
-- una corrida completa con 4 señales cuesta < USD 0.001.
+**Comité de verificación (debate).** Cuando Claude y las reglas discrepan sobre la relevancia o sobre una refutación o resolución, se arma un comité: una postura SÍ y una postura NO en paralelo, y un juez que decide citando evidencia. El tope es de 3 comités por análisis, y el veredicto se aplica y queda visible en la pestaña Resumen.
 
-Tokens, costo y latencia de cada llamada quedan en la traza.
+**Guardrails.**
+- JSON con formato fijo y temperatura 0.
+- Se descartan los IDs que no existan.
+- Las relaciones solo pueden ir de una fuente posterior a una anterior.
+- Se rechaza cualquier cifra inventada.
+- Caché por contenido en `.cache/`: repetir un análisis no vuelve a llamar a la API.
+
+**Configurar.** En la app: ⋯ → Conectar Claude, o `python -m rsa config --key sk-ant-...`. Necesitas una API key de console.anthropic.com; una suscripción Pro/Max no incluye API. Para forzar el modo reglas: `python -m rsa --solo-reglas app` o `RSA_MODO=reglas`.
+
+**Costo.** Con Haiku 5.5 (USD 0.10 / 0.50 por MTok):
+- El primer análisis de las 18 fuentes cuesta unas 25 llamadas, menos de USD 0.01, y tarda 20–40 s.
+- Cada fuente nueva cuesta 2 a 6 llamadas, unos 3–15 s.
+- Lo que ya está en caché cuesta USD 0.
+
+**Casos difíciles para ensayar** (`demo/dificiles/`). Muestran dónde fallan las reglas y por qué Claude decide:
+
+| Archivo | Solo reglas | Con Claude (esperado) |
+|---|---|---|
+| `F22_fee_en_ingles.md` | Crea una señal absurda ("the, onboarding, fee") | Va a Comisiones; "Pending…" es faltante |
+| `F23_correccion_informal.md` | No ve la corrección; S1 sube | Refuta F01.2 ("no era así… era QA") |
+| `F24_aprobacion_en_ingles.md` | La descarta como ruido | Va a Exoneración; resuelve "sin aprobación formal" (F05.2) |
 
 ## 4. GitHub: reporte que se actualiza solo
 
@@ -87,7 +104,7 @@ python -m rsa preguntar "¿hay piloto productivo?"  [--llm antes del comando]
 python -m rsa consultar "Credito Flexible" Web rate_input
 python -m rsa sync fuentes_nuevas         # lo que corre la Action
 python -m rsa demo --caso todos
-python -m unittest discover -s tests -t . -v      # 17 tests
+python -m unittest discover -s tests -t . -v      # 21 tests (núcleo en modo reglas + modo Claude con stub)
 ```
 
 ## 6. Arquitectura
@@ -111,10 +128,10 @@ ingesta (CSV + md, sha1) → relevancia (léxico económico / declaración de no
 
 **Score:** `100·(0.45·impacto + 0.30·evidencia + 0.25·urgencia) − 6·refutaciones (máx. 18)`. Los pesos se pueden discutir en vivo con los sliders.
 
-| Determinístico | Agentic |
+| Determinístico | Agentic (Claude) |
 |---|---|
-| Ingesta, clasificación, contradicciones, score, diff | Decidir si consultar la herramienta y con qué parámetros, con el motivo en el log (incluidas las omisiones) |
-| Mismo input, mismo output; todo auditable | Claude (opcional): resumen, preguntas, segunda opinión, siempre con citas validadas |
+| Ingesta, IDs por oración, score, diff, caché, validaciones | Relevancia, agrupamiento, tipo de oración, relaciones, cautelas, resumen |
+| Reglas como auditor y respaldo automático | Comité SÍ/NO + juez solo ante discrepancias |
 
 ## 7. Resultado sobre el paquete
 
@@ -128,6 +145,7 @@ ingesta (CSV + md, sha1) → relevancia (léxico económico / declaración de no
 
 ## 8. Limitaciones
 
-- La clasificación y las contradicciones son heurísticas léxicas. Ante una redacción muy distinta se amplía `lexicon.py`, o se usa la segunda opinión de Claude.
+- Claude no es 100 % reproducible: se mitiga con temperatura 0, caché y auditoría de las reglas. Las discrepancias quedan visibles.
+- Sin API, el respaldo vuelve a las heurísticas léxicas, que se amplían en `lexicon.py`.
 - Un documento que mezcla dos palancas se asigna a la dominante.
 - Los pesos de impacto son supuestos de negocio explícitos, no aprendidos.

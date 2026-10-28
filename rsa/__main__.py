@@ -19,7 +19,11 @@ for st in (sys.stdout, sys.stderr):
 
 
 def table(ver):
-    print(f"\nv{ver['v']} · {ver['evento']} · {len(ver['fuentes'])} fuentes")
+    m = ver.get("motor") or {}
+    extra = (f" · motor Claude ({m.get('modelo')}): {m.get('llamadas', 0)} llamadas, {m.get('cache', 0)} en caché, "
+             f"{m.get('comites', 0)} comités, USD {m.get('costo_usd', 0)}") if m.get("modo") == "claude" else \
+        (" · motor: solo reglas" + (f" ({m['aviso']})" if m.get("aviso") else ""))
+    print(f"\nv{ver['v']} · {ver['evento']} · {len(ver['fuentes'])} fuentes{extra}")
     print(f"{'#':<3}{'ID':<5}{'Score':>6}  {'Madurez':<8}{'Fuentes':<26}Señal")
     for i, s in enumerate(ver["signals"], 1):
         print(f"{i:<3}{s['id']:<5}{s['score']:>6}  {s['confianza']:<8}{','.join(s['fuentes']):<26}{s['titulo']}")
@@ -39,7 +43,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="rsa", description="Revenue Signals Agent")
     ap.add_argument("--paquete")
     ap.add_argument("--out")
-    ap.add_argument("--llm", action="store_true", help="resumen ejecutivo con Claude (requiere ANTHROPIC_API_KEY)")
+    ap.add_argument("--llm", action="store_true", help="en 'preguntar': redacta la respuesta con Claude")
+    ap.add_argument("--solo-reglas", action="store_true", help="fuerza el motor determinístico (sin Claude)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("run").add_argument("--reset", action="store_true")
     sub.add_parser("senales")
@@ -56,7 +61,7 @@ def main(argv=None):
     p = sub.add_parser("config", help="guarda la API key de Claude en .env"); p.add_argument("--key"); p.add_argument("--model")
     sub.add_parser("llm-test")
     a = ap.parse_args(argv if argv is not None else (sys.argv[1:] or ["app"]))
-    eng = Engine(a.paquete, a.out, a.llm)
+    eng = Engine(a.paquete, a.out, a.llm, a.solo_reglas)
 
     if a.cmd == "run":
         if a.reset:

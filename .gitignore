@@ -7,3 +7,4 @@ build/
 RevenueSignals.exe
 dist/
 marca/
+.cache/

@@ -8,7 +8,8 @@ STOP = set("""a al algo algunas algunos ante antes aun aunque cada como con cont
 ellas ellos en entre era es esa ese eso esta estan estar este esto estos fue ha han hay la las le les lo los mas me mi muy
 no nos o otra otro otros para pero poco por que quien se sea segun ser si sin sobre su sus tambien tan te tiene todo toda
 todos tras un una uno unos y ya debe deben puede podria cierto cierta ningun ninguna ningunos esa esas mismo misma
-mediante solo vez aun todavia ademas asi dato datos parte""".split())
+mediante solo vez aun todavia ademas asi dato datos parte
+the and for that this with from are was were has have not but its since into than then they them our your fyi""".split())
 
 
 def norm(s: str) -> str:

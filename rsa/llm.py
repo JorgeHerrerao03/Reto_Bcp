@@ -61,13 +61,15 @@ def status():
 
 
 # ---------- llamada ----------
-def call(prompt, max_tokens=500, system=None):
+def call(prompt, max_tokens=500, system=None, temperature=None):
     c = cfg()
     if not c["key"]:
         raise RuntimeError("Sin ANTHROPIC_API_KEY (configúrala en la app o en .env)")
     body = {"model": c["model"], "max_tokens": max_tokens, "messages": [{"role": "user", "content": prompt}]}
     if system:
         body["system"] = system
+    if temperature is not None:
+        body["temperature"] = temperature
     req = urllib.request.Request(os.getenv("RSA_API_URL", "https://api.anthropic.com/v1/messages"), data=json.dumps(body).encode(),
                                  headers={"x-api-key": c["key"], "anthropic-version": "2023-06-01",
                                           "content-type": "application/json"})

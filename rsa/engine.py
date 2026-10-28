@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import sys
@@ -11,6 +12,7 @@ from pathlib import Path
 
 from . import brief, llm
 from .analyze import analyze
+from .brain import Brain
 from .convert import raw_text, to_markdown
 from .corpus import load_package, parse_md
 from .tools import make_runner
@@ -36,7 +38,8 @@ def _status(c):
 
 
 class Engine:
-    def __init__(self, paquete=None, out=None, use_llm=False):
+    def __init__(self, paquete=None, out=None, use_llm=False, solo_reglas=False):
+        self.solo_reglas = solo_reglas or os.getenv("RSA_MODO", "").lower() == "reglas"
         self.paquete = Path(paquete) if paquete else default_paquete()
         self.out = Path(out) if out else AGENT_DIR / "out"
         self.inc_dir = self.out / "incorporadas"
@@ -52,7 +55,7 @@ class Engine:
     # ---------- fuentes ----------
     def reset(self):
         shutil.rmtree(self.out, ignore_errors=True)
-        self.__init__(self.paquete, self.out, self.use_llm)
+        self.__init__(self.paquete, self.out, self.use_llm, self.solo_reglas)
         self.state = {"versiones": [], "incorporadas": []}  # por si el FS no permitió borrar
 
     def sources(self, extra=None):
@@ -85,10 +88,34 @@ class Engine:
             raise ValueError(f"ID duplicado: {src.id}")
 
     # ---------- ciclo ----------
+    def brain(self):
+        """Claude decide siempre que haya API key; RSA_MODO=reglas o --solo-reglas fuerza modo determinístico."""
+        if self.solo_reglas or not llm.cfg()["key"]:
+            return None
+        return Brain(AGENT_DIR / ".cache" / "claude_cache.json")
+
+    def motor_mode(self):
+        return "reglas" if self.solo_reglas or not llm.cfg()["key"] else "claude"
+
     def _analyze(self, srcs, evento):
         by_id = {s.id: s for s in srcs}
         log = [{"accion": "ingestar", "n_fuentes": len(srcs), "fuentes": [f"{s.id}:{s.sha1}" for s in srcs]}]
-        res = analyze(srcs, tool_runner=make_runner(self.paquete / "herramientas" / "consultar_parametros.py"), log=log)
+        ai = self.brain()
+        res = analyze(srcs, tool_runner=make_runner(self.paquete / "herramientas" / "consultar_parametros.py"), log=log,
+                      ai=ai)
+        if ai and res["motor"]["modo"] == "claude":
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(4) as ex:
+                for s, r in zip(res["signals"], ex.map(ai.summary, res["signals"])):
+                    s["resumen_llm"] = r
+            ai.save()
+            res["log"].extend(ai.events)
+            ai.events = []
+            res["motor"] = ai.motor()
+        elif ai:
+            res["motor"] = {"modo": "reglas", "aviso": "Claude no respondió; se usó el motor de reglas",
+                            **ai.motor(), "modo_solicitado": "claude"}
+            res["motor"]["modo"] = "reglas"
         self._assign_ids(res["signals"])
         prev = self.state["versiones"][-1] if self.state["versiones"] else None
         ver = {"v": len(self.state["versiones"]) + 1, "ts": datetime.now().isoformat(timespec="seconds"),
@@ -99,9 +126,6 @@ class Engine:
     def run(self, evento=None):
         evento = evento or ("re-ejecución" if self.state["versiones"] else "ingesta inicial")
         ver, by_id = self._analyze(self.sources(), evento)
-        if self.use_llm:
-            for s in ver["signals"]:
-                s["resumen_llm"] = llm.summarize(s, ver["log"])
         self.state["versiones"].append(ver)
         self._write(ver, by_id)
         return ver
@@ -116,9 +140,9 @@ class Engine:
         out = {"fuente": src.to_dict(), "markdown": md, "diff": ver["diff"],
                "ranking": [{"id": s["id"], "titulo": s["titulo"], "score": s["score"]} for s in ver["signals"]],
                "clasificacion": [c for s in ver["signals"] for c in s["claims"] if c["fuente"] == src.id],
-               "descartada": next((d for d in ver["descartadas"] if d["fuente"] == src.id), None)}
-        if self.use_llm:
-            out["revision_llm"] = llm.review_new_doc(src, ver["signals"], ver["log"])
+               "descartada": next((d for d in ver["descartadas"] if d["fuente"] == src.id), None),
+               "comites": ver["comites"], "motor": ver["motor"],
+               "auditoria_relevancia": [a for a in ver["auditoria_relevancia"] if a["fuente"] == src.id]}
         return out
 
     def incorporar(self, path=None, md=None):
@@ -143,7 +167,6 @@ class Engine:
 
     def sync(self, folder):
         """Re-construye todo desde cero e incorpora cada .md de la carpeta en orden de fecha (usado por CI)."""
-        use_llm, self.use_llm = self.use_llm, False  # Claude solo sobre la versión final (costo mínimo)
         self.reset()
         self.run()
         files = []
@@ -161,12 +184,6 @@ class Engine:
                 print(f"[sync] incorporado {name}")
             except ValueError as e:
                 print(f"[sync][omitido] {name}: {e}")
-        self.use_llm = use_llm
-        if use_llm:
-            ver = self.latest()
-            for s in ver["signals"]:
-                s["resumen_llm"] = llm.summarize(s, ver["log"])
-            self._write(ver, {s.id: s for s in self.sources()})
         return self.latest()
 
     # ---------- IDs estables entre versiones ----------

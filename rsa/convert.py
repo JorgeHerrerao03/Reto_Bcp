@@ -32,7 +32,7 @@ def raw_text(filename: str, data: bytes | str) -> str:
 
 
 def to_markdown(text: str, meta: dict, next_id: str, filename: str = "") -> str:
-    """Si el texto ya trae encabezado estándar, se respeta; los campos del formulario completan lo faltante."""
+    """El encabezado estándar del texto/archivo tiene prioridad; los campos del formulario completan lo faltante."""
     text = text.replace("\r\n", "\n").strip()
     found = dict(re.findall(r"^\*\*(ID|Fecha|Tipo|Área|Area):\*\*\s*(.+?)\s*$", text, re.M))
     found = {k.replace("Area", "Área"): v for k, v in found.items()}
@@ -40,12 +40,13 @@ def to_markdown(text: str, meta: dict, next_id: str, filename: str = "") -> str:
     body = "\n".join(l for l in text.splitlines() if not l.startswith("# ") and not HDR.match(l)).strip()
     stem = re.sub(r"[_-]+", " ", re.sub(r"\.\w+$", "", filename)).strip()
     f = {
-        "ID": (meta.get("id") or found.get("ID") or next_id).strip().upper(),
-        "Fecha": meta.get("fecha") or found.get("Fecha") or date.today().isoformat(),
-        "Tipo": meta.get("tipo") or found.get("Tipo") or "Documento",
-        "Área": meta.get("area") or found.get("Área") or "Sin área",
+        # el encabezado del archivo manda; el formulario completa lo que falte
+        "ID": (found.get("ID") or meta.get("id") or next_id).strip().upper(),
+        "Fecha": found.get("Fecha") or meta.get("fecha") or date.today().isoformat(),
+        "Tipo": found.get("Tipo") or meta.get("tipo") or "Documento",
+        "Área": found.get("Área") or meta.get("area") or "Sin área",
     }
-    titulo = meta.get("titulo") or (m.group(1).strip() if m else "") or stem or "Fuente incorporada"
+    titulo = (m.group(1).strip() if m else "") or meta.get("titulo") or stem or "Fuente incorporada"
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", f["Fecha"]):
         raise ValueError(f"Fecha inválida '{f['Fecha']}' (usa AAAA-MM-DD)")
     if not body:

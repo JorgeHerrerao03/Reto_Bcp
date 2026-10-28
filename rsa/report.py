@@ -22,6 +22,7 @@ def _slim(state):
             s["brief_md"] = render(s, by)
             sig.append(s)
         d = {k: v[k] for k in ("v", "ts", "evento", "fuentes", "descartadas", "log", "diff")}
+        d.update({k: v.get(k) for k in ("motor", "comites", "auditoria_relevancia")})
         d["signals"] = sig
         vs.append(d)
     return vs
@@ -187,7 +188,7 @@ textarea{min-height:120px;resize:vertical}
 <div style="margin-top:10px"><label class="f">Título</label><input id="f-titulo" placeholder="Opcional: se toma del archivo"></div>
 <div class="step"><b>3</b>Revisar y guardar</div>
 <div class="row" style="margin-top:4px"><button class="btn" id="b-prev">Previsualizar impacto</button><button class="btn pri" id="b-inc" disabled>Incorporar</button>
-<label class="chk"><input type="checkbox" id="f-llm"> Segunda opinión de Claude</label></div><div id="prev-res"></div></div></div>
+<span class="sub" id="f-motor"></span></div><div id="prev-res"></div></div></div>
 <div class="modal" id="m-ask"><div class="card"><button class="x" data-close>✕</button><h2>Preguntar a las fuentes</h2>
 <div class="sub">Busca en cada oración de la versión vigente. En la app, Claude puede redactar la respuesta citando solo esa evidencia.</div>
 <div class="row"><input id="q" placeholder="¿El piloto de fechas de pago está en producción?" style="flex:1;margin:0"><button class="btn pri" id="b-ask">Buscar</button>
@@ -196,7 +197,7 @@ textarea{min-height:120px;resize:vertical}
 <div class="sub">La API key se guarda solo en el archivo <span class="mono">.env</span> de tu PC (excluido de git). Sin key todo funciona en modo determinístico.</div>
 <div class="grid" style="grid-template-columns:2fr 1fr;margin-top:14px"><div><label class="f">ANTHROPIC_API_KEY</label><input id="c-key" type="password" placeholder="sk-ant-…"></div>
 <div><label class="f">Modelo</label><input id="c-model" placeholder="claude-haiku-5-5"></div></div>
-<div class="row"><button class="btn pri" id="b-save">Guardar</button><button class="btn" id="b-test">Probar conexión</button><button class="btn" id="b-sum">Generar resúmenes</button></div><div id="cfg-res" class="res sub"></div></div></div>
+<div class="row"><button class="btn pri" id="b-save">Guardar</button><button class="btn" id="b-test">Probar conexión</button><button class="btn" id="b-sum">Re-analizar con Claude</button></div><div id="cfg-res" class="res sub"></div></div></div>
 <div class="toast" id="toast"></div>
 <script>
 const V=/*__DATA__*/null, APP=!!window.RSA_APP;
@@ -220,7 +221,7 @@ function header(){
    <button class="btn ghost" id="more" aria-label="Más opciones">⋯</button><div class="menu" id="menu">${menu.map(([k,n])=>k==="-"?"<hr>":`<button data-a="${k}">${n}</button>`).join("")}</div>`;
   $("#more").onclick=e=>{e.stopPropagation();$("#menu").classList.toggle("on")};
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{$("#menu").classList.remove("on");act(b.dataset.a)});
-  $("#mode").textContent=APP?(ST?.llm.configurada?"App local · Claude conectado":"App local"):"Solo lectura";
+
 }
 document.addEventListener("click",()=>$("#menu")?.classList.remove("on"));
 async function act(k){
@@ -237,9 +238,10 @@ async function act(k){
 function render(){
   const v=V[vi]; if(!sel||!v.signals.find(s=>s.id===sel)) sel=v.signals[0]?.id; sset("rs-sel",sel); sset("rs-tab",tab);
   $("#vsel").innerHTML=V.map((x,i)=>`<option value="${i}" ${i===vi?"selected":""}>v${x.v} · ${esc(x.evento)}</option>`).join("");
+  $("#mode").textContent=(APP?"App local · ":"Solo lectura · ")+(v.motor?.modo==="claude"?"Motor: Claude decide, reglas auditan":"Motor: solo reglas");
   $("#vprev").disabled=vi===0;$("#vnext").disabled=vi===V.length-1;
   const nc=v.log.filter(l=>l.accion==="consulta_herramienta").length;
-  $("#stats").innerHTML=[[v.fuentes.length,"fuentes"],[v.signals.length,"señales"],[v.descartadas.length,"descartadas"],[nc,"consultas a la herramienta"]].map(([n,k])=>`<span><b>${n}</b>${k}</span>`).join("");
+  $("#stats").innerHTML=[[v.fuentes.length,"fuentes"],[v.signals.length,"señales"],[v.descartadas.length,"descartadas"],[nc,"consultas a la herramienta"]].concat(v.motor?.modo==="claude"?[[v.motor.comites||0,"comités"],["USD "+v.motor.costo_usd,"Claude"]]:[]).map(([n,k])=>`<span><b>${n}</b>${k}</span>`).join("");
   $("#list").innerHTML=`<div class="h-list">Señales priorizadas</div>`+v.signals.map((s,i)=>{const p=prevSig(s.id);const d=p?Math.round((s.score-p.score)*10)/10:null;const c=s.conteo;
     return `<div class="card sig ${s.id===sel?"on":""}" data-s="${s.id}"><div class="r"><span class="rank">${i+1}</span><h3>${esc(s.titulo)}</h3><span class="sc">${s.score}</span></div>
     <div class="bar"><i style="width:${s.score}%"></i></div>
@@ -273,11 +275,20 @@ function brief(s,d){
   if(s.no_afirmo.length)h+=`<div class="callout no"><h4>Lo que NO afirmo</h4><ul>${s.no_afirmo.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`;
   for(const [t,n,open] of [["hecho","Hechos confirmados",1],["hipotesis","Hipótesis",1],["faltante","Datos faltantes",0],["correccion","Correcciones",1],["advertencia","Advertencias",0]]){const xs=s.claims.filter(c=>c.tipo===t);if(!xs.length)continue;
     h+=`<details class="grp" ${open||xs.some(c=>nw.has(c.sid)||c.superada)?"open":""}><summary>${n}<span class="cnt">${xs.length}</span></summary>${xs.map(c=>`<div class="cl ${c.superada?"sup":""} ${nw.has(c.sid)?"nuevo flash":""}">
-    <div>${c.superada?`<span class="tag t-${st(c)}">${ET[st(c)]}</span>`:""}<span class="tx">${esc(c.texto)}</span>${c.superada?` <span class="trans">por ${cites("["+c.por+"]")}</span>`:""}${tr[c.sid]?` <span class="trans">(cambió: ${ET[tr[c.sid].de]} → ${ET[tr[c.sid].a]})</span>`:""}</div>
+    <div>${c.superada?`<span class="tag t-${st(c)}">${ET[st(c)]}</span>`:""}<span class="tx" title="${esc(c.razon||"")}">${esc(c.texto)}</span>${c.tipo_reglas&&c.decide==="claude"&&c.tipo_reglas!==c.tipo?` <span class="tag t-advertencia" title="Las reglas la clasificaron distinto">⚠ reglas: ${ET[c.tipo_reglas]}</span>`:""}${c.confirmada_por?` <span class="tag t-hecho">confirmada por ${cites("["+c.confirmada_por+"]")}</span>`:""}${c.superada?` <span class="trans">por ${cites("["+c.por+"]")}</span>`:""}${tr[c.sid]?` <span class="trans">(cambió: ${ET[tr[c.sid].de]} → ${ET[tr[c.sid].a]})</span>`:""}</div>
     <button class="cite" data-src="${c.sid}">[${c.sid}]</button></div>`).join("")}</details>`}
   if(s.consultas.length)h+=`<details class="grp" open><summary>Consulta a la herramienta<span class="cnt">${s.consultas.length}</span></summary>${s.consultas.map(c=>`<div class="tool"><span class="mono">consultar_parametros.py ${c.args.map(a=>"'"+esc(a)+"'").join(" ")}</span><div>${cites(esc(c.lectura))}</div></div>`).join("")}<div class="warn">⚠ ${esc(s.consultas[0].resultado.advertencia||"")}</div></details>`;
   if(s.proximos_pasos.length)h+=`<details class="grp" open><summary>Próximos pasos<span class="cnt">${s.proximos_pasos.length}</span></summary><ol class="steps">${s.proximos_pasos.map(p=>`<li>${esc(p.texto)} ${cites("["+p.sid+"]")}</li>`).join("")}</ol></details>`;
+  const A=s.auditoria;if(A&&A.motor==="claude"){const rd=A.relaciones_en_disputa||[];const cm=(V[vi].comites||[]).filter(c=>s.claims.some(x=>c.objeto.includes(x.sid)));
+    h+=`<details class="grp"><summary>Auditoría: Claude vs. reglas<span class="cnt">${A.coinciden}/${A.por_claude} coinciden</span></summary><div style="padding-left:20px">
+    <div class="sub" style="margin-bottom:6px">Claude clasificó ${A.por_claude} de ${A.oraciones} oraciones; las reglas coinciden en ${A.coinciden}. Las discrepancias se marcan con ⚠ y las relaciones en disputa van al comité.</div>
+    ${A.discrepancias.map(d=>`<div class="hit">${cites("["+d.sid+"]")} Claude: <b>${ET[d.claude]}</b> · reglas: <b>${ET[d.reglas]}</b> <span class="sub">— ${esc(d.razon)}</span></div>`).join("")}
+    ${rd.map(d=>`<div class="hit">Relación ${cites("["+d.de+"]")} ${d.relacion} ${cites("["+d.a+"]")} · propuesta por <b>${d.propone}</b>${d.comite===null?"":` · comité: <b>${d.comite?"se mantiene":"se descarta"}</b>`}</div>`).join("")}</div></details>`;
+    if(cm.length)h+=`<details class="grp"><summary>Comité de verificación<span class="cnt">${cm.length}</span></summary><div style="padding-left:20px">${comitesHtml(cm)}</div></details>`}
   return h}
+function comitesHtml(cm){return cm.map(c=>`<div class="callout ai" style="margin:8px 0"><h4>Comité · ${esc(c.objeto)}</h4><div>${esc(c.pregunta)}</div>
+  <div class="hit"><b>Postura SÍ:</b> ${cites(esc(c.si))}</div><div class="hit"><b>Postura NO:</b> ${cites(esc(c.no))}</div>
+  <div class="hit"><b>Juez:</b> ${c.veredicto?"SÍ":"NO"} — ${esc(c.motivo)}</div></div>`).join("")}
 function graph(v){
   const Wd=900,rowH=92,x0=210,top=58,rows=[...v.signals.map(s=>({s,ids:s.fuentes})),{s:null,ids:v.descartadas.map(d=>d.fuente)}];
   const H=rows.length*rowH+top,pos={};let svg="",bg="",ln="";
@@ -339,25 +350,27 @@ async function ask(){const q=$("#q").value.trim();if(!q)return;$("#ask-res").inn
 // ---------- añadir fuente ----------
 let FILE=null, PREV=null;
 function openAdd(){FILE=null;PREV=null;["f-titulo","f-area","f-texto"].forEach(i=>$("#"+i).value="");$("#f-file").textContent="";$("#prev-res").innerHTML="";$("#b-inc").disabled=true;
-  $("#f-id").value=ST?.next_id||"";$("#f-fecha").value=new Date().toISOString().slice(0,10);$("#f-llm").disabled=!ST?.llm.configurada;$("#m-add").classList.add("on")}
+  $("#f-id").value=ST?.next_id||"";$("#f-fecha").value=new Date().toISOString().slice(0,10);$("#f-motor").textContent=ST?.motor==="claude"?"Claude analiza la fuente; las reglas auditan (3–15 s).":"Motor: solo reglas (sin API key).";$("#m-add").classList.add("on")}
 function readFile(f){const r=new FileReader();r.onload=()=>{FILE={filename:f.name,b64:r.result.split(",")[1]};$("#f-file").textContent="📄 "+f.name+" cargado";
   if(/\.(md|txt)$/i.test(f.name)){$("#f-texto").value=new TextDecoder().decode(Uint8Array.from(atob(FILE.b64),c=>c.charCodeAt(0)));FILE=null}
   PREV=null;$("#b-inc").disabled=true};r.readAsDataURL(f)}
 function payload(){const meta={id:$("#f-id").value,fecha:$("#f-fecha").value,tipo:$("#f-tipo").value,area:$("#f-area").value,titulo:$("#f-titulo").value};
   return FILE?{...FILE,meta}:{texto:$("#f-texto").value,filename:"",meta}}
 async function preview(){$("#prev-res").innerHTML='<div class="res sub">Analizando impacto…</div>';
-  try{PREV=await api("/api/preview",{...payload(),llm:$("#f-llm").checked})}catch(e){$("#prev-res").innerHTML=`<div class="res">⚠ ${esc(e.message)}</div>`;PREV=null;$("#b-inc").disabled=true;return}
+  try{$("#prev-res").innerHTML=`<div class="res sub">${ST?.motor==="claude"?"Claude está analizando la fuente y la evidencia relacionada…":"Analizando…"}</div>`;PREV=await api("/api/preview",payload())}catch(e){$("#prev-res").innerHTML=`<div class="res">⚠ ${esc(e.message)}</div>`;PREV=null;$("#b-inc").disabled=true;return}
   const p=PREV,f=p.fuente;let h=`<div class="res"><b>${f.id}</b> · ${f.fecha} · ${esc(f.tipo)} · ${esc(f.area)} · ${esc(f.titulo)}`;
   h+=p.descartada?`<div class="callout no" style="margin:10px 0"><h4>Se descartaría como ruido</h4>${esc(p.descartada.motivo)}</div>`:"";
   h+=`<h3 class="sect" style="margin-top:14px">Qué cambiaría</h3><ul>${(p.diff?.explicacion||[]).map(l=>`<li>${esc(l)}</li>`).join("")||"<li>Sin cambios materiales</li>"}</ul>`;
-  if(p.clasificacion.length)h+=`<h3 class="sect">Cómo se clasificó cada oración</h3>${p.clasificacion.map(c=>`<div class="hit"><span class="tag t-${c.tipo}">${ET[c.tipo]}</span><span class="mono sub">${c.sid}</span> ${esc(c.texto)}</div>`).join("")}`;
-  if(p.revision_llm)h+=`<div class="callout ai"><h4>Segunda opinión · Claude</h4>${p.revision_llm.relaciones.map(r=>`<div class="hit"><b>${esc(r.nuevo)}</b> ${esc(r.relacion)} <b>${esc(r.existente)}</b> — ${esc(r.motivo)}</div>`).join("")||"<div class='sub'>Sin relaciones claras.</div>"}${p.revision_llm.riesgo?`<div class="warn" style="margin-left:0">Riesgo de sobreafirmación: ${esc(p.revision_llm.riesgo)}</div>`:""}<div class="sub">USD ${p.revision_llm.costo_usd} · ${p.revision_llm.ms} ms</div></div>`;
+  if(p.clasificacion.length)h+=`<h3 class="sect">Cómo se clasificó cada oración</h3>${p.clasificacion.map(c=>`<div class="hit"><span class="tag t-${c.tipo}">${ET[c.tipo]}</span><span class="mono sub">${c.sid}</span> ${esc(c.texto)}${c.razon?`<div class="sub">Claude: ${esc(c.razon)}${c.tipo_reglas&&c.tipo_reglas!==c.tipo?` · <b style="color:var(--hip)">reglas decían: ${ET[c.tipo_reglas]}</b>`:""}</div>`:""}</div>`).join("")}`;
+  if(p.auditoria_relevancia?.length)h+=p.auditoria_relevancia.map(a=>`<div class="callout ai"><h4>Claude vs. reglas · relevancia</h4>Claude: <b>${a.claude?"relevante":"ruido"}</b> · reglas: <b>${a.reglas?"relevante":"ruido"}</b>${a.comite!==null?` · comité: <b>${a.comite?"relevante":"ruido"}</b>`:""}</div>`).join("");
+  const cm=(p.comites||[]).filter(c=>c.objeto.includes(f.id));if(cm.length)h+=comitesHtml(cm);
+  h+=`<div class="sub" style="margin-top:8px">${p.motor?.modo==="claude"?`Motor Claude · ${p.motor.llamadas} llamadas nuevas · ${p.motor.cache} en caché · USD ${p.motor.costo_usd}`:"Motor: solo reglas"+(p.motor?.aviso?" — "+esc(p.motor.aviso):"")}</div>`;
   $("#prev-res").innerHTML=h+"</div>";$("#b-inc").disabled=false}
 async function incorporate(){if(!PREV)return;$("#b-inc").disabled=true;try{const r=await api("/api/incorporar",{markdown:PREV.markdown});sset("rs-msg",r.explicacion);if(r.cambios&&r.cambios[0])sset("rs-sel",r.cambios[0]);sset("rs-tab","resumen");location.reload()}catch(e){toast("⚠ "+e.message,6000);$("#b-inc").disabled=false}}
 // ---------- Claude ----------
 async function cfgSave(){try{const r=await api("/api/config",{key:$("#c-key").value||undefined,model:$("#c-model").value||undefined});ST.llm=r;$("#c-key").value="";$("#cfg-res").textContent="Guardado. Key: "+(r.key||"—")+" · modelo "+r.modelo;header()}catch(e){$("#cfg-res").textContent="⚠ "+e.message}}
 async function cfgTest(){$("#cfg-res").textContent="Probando…";try{const r=await api("/api/llm/test",{});$("#cfg-res").textContent=`✅ Conectado · ${r.modelo} · ${r.ms} ms · USD ${r.costo_usd}`}catch(e){$("#cfg-res").textContent="⚠ "+e.message}}
-async function cfgSum(){$("#cfg-res").textContent="Generando resúmenes (1 llamada por señal)…";try{const r=await api("/api/llm/resumenes",{});sset("rs-msg",[`Resúmenes de Claude aceptados: ${r.aceptados}/${r.total}`]);location.reload()}catch(e){$("#cfg-res").textContent="⚠ "+e.message}}
+async function cfgSum(){$("#cfg-res").textContent="Re-analizando con Claude (usa caché; solo llama por lo nuevo)…";try{const r=await api("/api/llm/resumenes",{});sset("rs-msg",[`Re-análisis listo · resúmenes aceptados: ${r.aceptados}/${r.total}`]);location.reload()}catch(e){$("#cfg-res").textContent="⚠ "+e.message}}
 // ---------- init ----------
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest(".modal").classList.remove("on"));
 document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("on")});

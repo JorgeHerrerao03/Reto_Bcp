@@ -18,3 +18,9 @@ Antes de empezar: doble clic en `Iniciar_RevenueSignals.bat` y luego **Reiniciar
 2. **Previsualizar**: leer "Qué cambiaría" y "Cómo clasifiqué cada oración". Si hay key, activar la *Segunda opinión de Claude*.
 3. **Incorporar** y explicar el diff. Si algo no convence, usar **Deshacer última**.
 4. Si una contradicción no se detecta, mostrar `lexicon.py` (cues de CORRECCION) y explicar el trade-off entre la auditabilidad de las reglas y la cobertura del LLM.
+
+## Si te traen lenguaje no normalizado (inglés, informal)
+
+1. Primero muestra el contraste: corre en una terminal `python -m rsa --solo-reglas run --reset` y luego `python -m rsa --solo-reglas incorporar demo\dificiles\F23_correccion_informal.md`. Las reglas no ven la corrección.
+2. En la app, que usa Claude: **＋ Añadir fuente** con el mismo archivo → **Previsualizar**. Muestra "Cómo se clasificó cada oración" (razón de Claude, "⚠ reglas decían…") y el **comité** si lo hubo.
+3. Frase: *"Claude interpreta el lenguaje real, las reglas auditan, y si discrepan debate un comité con juez. El score es determinístico y todo cita la oración que lo sustenta."*
