@@ -6,3 +6,4 @@ build/
 *.spec
 RevenueSignals.exe
 dist/
+marca/

@@ -4,6 +4,7 @@
 Estilo: paleta corporativa azul/naranja inspirada en banca peruana; sin logos ni imágenes de terceros."""
 from __future__ import annotations
 
+import base64
 import json
 from types import SimpleNamespace
 
@@ -26,9 +27,23 @@ def _slim(state):
     return vs
 
 
+BRAND_TXT = '<div>Revenue Signals<small>Prototipo · reto técnico · datos sintéticos</small></div>'
+
+
+def _brand():
+    """Logo opcional SOLO local: marca/logo.png (excluido de git, no se publica en GitHub Pages)."""
+    from .engine import AGENT_DIR
+    f = AGENT_DIR / "marca" / "logo.png"
+    if f.exists():
+        b64 = base64.b64encode(f.read_bytes()).decode()
+        return (f'<div class="brand"><span class="logo"><img src="data:image/png;base64,{b64}" alt="Logo"></span>'
+                f'<span class="sep"></span>{BRAND_TXT}</div>')
+    return f'<div class="brand"><i></i>{BRAND_TXT}</div>'
+
+
 def write(state, path):
     data = json.dumps(_slim(state), ensure_ascii=False).replace("</", "<\\/")
-    path.write_text(HTML.replace("/*__DATA__*/null", data), encoding="utf-8")
+    path.write_text(HTML.replace("/*__DATA__*/null", data).replace("<!--BRAND-->", _brand()), encoding="utf-8")
 
 
 HTML = r"""<!doctype html>
@@ -53,6 +68,7 @@ button{font:inherit}.mono{font-family:ui-monospace,Consolas,monospace;font-size:
 .hdr .in{max-width:1320px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.01em}
 .brand i{width:12px;height:12px;border-radius:50%;background:var(--orange);display:inline-block}
+.brand .logo{background:#fff;border-radius:10px;padding:6px 10px;display:flex}.brand .logo img{height:26px;display:block}.brand .sep{width:1px;height:30px;background:rgba(255,255,255,.35)}
 .brand small{display:block;font-weight:600;font-size:12px;opacity:.75;letter-spacing:0}
 .hdr .acts{margin-left:auto;display:flex;gap:8px;align-items:center;position:relative}
 .btn{border:1.5px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:8px 16px;cursor:pointer;font-weight:700;font-size:14px}
@@ -150,7 +166,7 @@ textarea{min-height:120px;resize:vertical}
 .foot{max-width:1320px;margin:0 auto;padding:0 24px 30px;color:var(--mut);font-size:12.5px}
 @media print{.hdr .acts,.subbar,aside,.seg,.drawer,.modal,.toast,.foot{display:none!important}.wrap{display:block;padding:0}.card{box-shadow:none;border:0}body{background:#fff}details{display:block}}
 </style></head><body>
-<div class="hdr"><div class="in"><div class="brand"><i></i><div>Revenue Signals<small>Prototipo · reto técnico · datos sintéticos</small></div></div>
+<div class="hdr"><div class="in"><!--BRAND-->
 <div class="acts" id="acts"></div></div></div>
 <div class="subbar"><div class="in">
 <div class="ver"><label for="vsel">Versión</label><button class="arrow" id="vprev" title="Anterior (←)">‹</button><select id="vsel"></select><button class="arrow" id="vnext" title="Siguiente (→)">›</button></div>
