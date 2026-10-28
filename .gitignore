@@ -1,0 +1,8 @@
+out/
+__pycache__/
+*.pyc
+.env
+build/
+*.spec
+RevenueSignals.exe
+dist/

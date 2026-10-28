@@ -1,0 +1,8 @@
+# Título de la fuente
+
+**ID:** F19
+**Fecha:** 2026-09-24
+**Tipo:** Correo
+**Área:** Tecnología
+
+Texto de la fuente. Una idea por oración ayuda a que cada afirmación quede bien clasificada y citada.

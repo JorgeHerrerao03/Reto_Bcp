@@ -1,0 +1,158 @@
+"""App local: servidor HTTP (stdlib) + la misma UI del reporte en 'modo app'.
+python -m rsa app → abre el navegador en http://127.0.0.1:8765 (solo escucha en localhost)."""
+from __future__ import annotations
+
+import base64
+import json
+import threading
+import traceback
+import webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+from . import llm
+from .engine import AGENT_DIR, Engine
+from .search import search
+
+LOCK = threading.Lock()
+DEMOS = {"contradice": "F19_contradice.md", "confirma": "F20_confirma.md", "ruido": "F21_ruido.md"}
+
+
+def make_handler(eng: Engine):
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, fmt, *a):
+            print("[app]", self.command, self.path, a[1] if len(a) > 1 else "")
+
+        def _send(self, code, body, ctype="application/json; charset=utf-8"):
+            data = body if isinstance(body, bytes) else (
+                body.encode() if isinstance(body, str) else json.dumps(body, ensure_ascii=False).encode())
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            if self.path in ("/", "/index.html"):
+                html = (eng.out / "reporte.html").read_text(encoding="utf-8")
+                return self._send(200, html.replace("<head>", "<head><script>window.RSA_APP=true</script>", 1),
+                                  "text/html; charset=utf-8")
+            if self.path == "/api/status":
+                return self._send(200, self.status())
+            if self.path.startswith("/api/brief/"):
+                sid = self.path.rsplit("/", 1)[-1].replace(".md", "")
+                f = eng.out / "briefs" / f"{sid}_brief.md"
+                if f.exists():
+                    return self._send(200, f.read_bytes(), "text/markdown; charset=utf-8")
+            self._send(404, {"error": "no encontrado"})
+
+        def status(self):
+            return {"versiones": len(eng.state["versiones"]), "incorporadas": eng.state["incorporadas"],
+                    "next_id": eng.next_id(), "llm": llm.status()}
+
+        def do_POST(self):
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                body = json.loads(self.rfile.read(n) or b"{}")
+            except json.JSONDecodeError:
+                return self._send(400, {"error": "JSON inválido"})
+            route = {"/api/preview": self.preview, "/api/incorporar": self.incorporar,
+                     "/api/deshacer": self.deshacer, "/api/reset": self.reset, "/api/demo": self.demo,
+                     "/api/preguntar": self.preguntar, "/api/config": self.config, "/api/llm/test": self.llm_test,
+                     "/api/llm/resumenes": self.resumenes}.get(self.path)
+            if not route:
+                return self._send(404, {"error": "ruta no existe"})
+            try:
+                with LOCK:
+                    return self._send(200, route(body))
+            except (ValueError, RuntimeError, FileNotFoundError) as e:
+                return self._send(400, {"error": str(e)})
+            except Exception as e:
+                traceback.print_exc()
+                return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+
+        # ---- acciones ----
+        def _md(self, b):
+            if b.get("markdown"):
+                return b["markdown"]
+            data = base64.b64decode(b["b64"]) if b.get("b64") else b.get("texto", "")
+            return eng.build_md(data=data, filename=b.get("filename", ""), meta=b.get("meta") or {})
+
+        def preview(self, b):
+            eng.use_llm = bool(b.get("llm")) and llm.status()["configurada"]
+            try:
+                return eng.preview(self._md(b))
+            finally:
+                eng.use_llm = False
+
+        def incorporar(self, b):
+            v = eng.incorporar(md=self._md(b))
+            return {"ok": True, "v": v["v"], "explicacion": v["diff"]["explicacion"], "cambios": list(v["diff"]["cambios"])}
+
+        def deshacer(self, b):
+            return {"ok": True, "retirada": eng.deshacer()}
+
+        def reset(self, b):
+            eng.reset()
+            eng.run()
+            return {"ok": True}
+
+        def demo(self, b):
+            p = AGENT_DIR / "demo" / DEMOS[b.get("caso", "contradice")]
+            md = eng.build_md(path=p)
+            if eng._parse_text(md).id in {s.id for s in eng.sources()}:  # ID ocupado → siguiente libre
+                md = eng.build_md(path=p, meta={"id": eng.next_id()})
+            v = eng.incorporar(md=md)
+            return {"ok": True, "v": v["v"], "explicacion": v["diff"]["explicacion"], "cambios": list(v["diff"]["cambios"])}
+
+        def preguntar(self, b):
+            q = (b.get("q") or "").strip()
+            if not q:
+                raise ValueError("Escribe una pregunta")
+            hits = search(eng.latest(), q, 8)
+            out = {"hits": hits, "llm": None}
+            if b.get("llm") and llm.status()["configurada"] and hits:
+                try:
+                    out["llm"] = llm.answer(q, hits)
+                except Exception as e:
+                    out["llm"] = {"error": str(e)}
+            return out
+
+        def config(self, b):
+            llm.save_cfg(b.get("key"), b.get("model"))
+            return llm.status()
+
+        def llm_test(self, b):
+            return llm.test()
+
+        def resumenes(self, b):
+            eng.use_llm = True
+            try:
+                v = eng.run(evento="resúmenes con Claude")
+            finally:
+                eng.use_llm = False
+            return {"ok": True, "aceptados": sum(1 for s in v["signals"] if s.get("resumen_llm")),
+                    "total": len(v["signals"])}
+
+    return H
+
+
+def serve(eng: Engine, port=8765, open_browser=True):
+    if not eng.state["versiones"]:
+        eng.run()
+    for p in range(port, port + 20):
+        try:
+            httpd = ThreadingHTTPServer(("127.0.0.1", p), make_handler(eng))
+            break
+        except OSError:
+            continue
+    else:
+        raise SystemExit("No hay puertos libres")
+    url = f"http://127.0.0.1:{p}/"
+    print(f"\n  Revenue Signals Agent · app en {url}\n  (Ctrl+C para cerrar)\n")
+    if open_browser:
+        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nCerrado.")

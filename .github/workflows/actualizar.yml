@@ -1,0 +1,41 @@
+name: Actualizar reporte
+
+on:
+  push:
+    branches: [main]
+    paths: ["fuentes_nuevas/**", "paquete/**", "rsa/**", "demo/**", "tests/**", ".github/workflows/actualizar.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reporte
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tests contra las trampas
+        run: python -m unittest discover -s tests -t . -v
+      - name: Reconstruir e incorporar fuentes_nuevas/
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          FLAG=""; if [ -n "$ANTHROPIC_API_KEY" ]; then FLAG="--llm"; fi
+          python -m rsa --paquete paquete --out out $FLAG sync fuentes_nuevas
+          mkdir -p docs/briefs
+          cp out/reporte.html docs/index.html
+          cp out/briefs/*.md docs/briefs/
+          touch docs/.nojekyll
+      - name: Publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add docs
+          git diff --cached --quiet || (git commit -m "Reporte actualizado [skip ci]" && git push)
