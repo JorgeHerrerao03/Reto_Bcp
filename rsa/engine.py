@@ -44,6 +44,8 @@ class Engine:
         self.use_llm = use_llm
         self.out.mkdir(parents=True, exist_ok=True)
         self.state = json.loads(self.state_f.read_text(encoding="utf-8")) if self.state_f.exists() else {}
+        if self.state and "incorporadas" not in self.state:  # estado de una versión anterior → empezar limpio
+            self.state = {}
         self.state.setdefault("versiones", [])
         self.state.setdefault("incorporadas", [])
 

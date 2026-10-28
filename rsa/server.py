@@ -140,6 +140,9 @@ def make_handler(eng: Engine):
 def serve(eng: Engine, port=8765, open_browser=True):
     if not eng.state["versiones"]:
         eng.run()
+    else:  # regenerar siempre la UI con el código actual (evita servir un reporte viejo)
+        from . import report
+        report.write(eng.state, eng.out / "reporte.html")
     for p in range(port, port + 20):
         try:
             httpd = ThreadingHTTPServer(("127.0.0.1", p), make_handler(eng))
