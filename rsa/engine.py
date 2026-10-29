@@ -260,9 +260,26 @@ class Engine:
         self.save()
         report.write(self.state, self.out / "reporte.html")
 
+    def ensure_briefs(self, ver=None, save=True):
+        """Completa el brief estratégico en versiones guardadas sin él (p.ej. creadas con una versión anterior)."""
+        ver = ver or self.latest()
+        missing = [s for s in ver["signals"] if not s.get("brief")]
+        if not missing:
+            return 0
+        fx = {f["id"]: {"area": f["area"], "titulo": f["titulo"]} for f in ver["fuentes"]}
+        ai = self.brain() if (ver.get("motor") or {}).get("modo") == "claude" else None
+        for s in missing:
+            s["brief"] = strategy.build(s, fx, ai)
+        if ai:
+            ai.save()
+        if save:
+            self.save()
+        return len(missing)
+
     def docx(self, sid, ver=None):
         from . import docx
         ver = ver or self.latest()
+        self.ensure_briefs(ver)
         s = next(x for x in ver["signals"] if x["id"] == sid)
         s = {**s, "recomendacion": brief.recomendacion(s)}
         logo_f = AGENT_DIR / "marca" / "logo.png"

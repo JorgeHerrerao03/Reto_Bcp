@@ -16,9 +16,13 @@ def _slim(state):
     for v in state["versiones"]:
         by = {f["id"]: SimpleNamespace(**f) for f in v["fuentes"]}
         sig = []
+        fx = {f["id"]: {"area": f["area"], "titulo": f["titulo"]} for f in v["fuentes"]}
         for s in v["signals"]:
             s = dict(s)
             s["recomendacion"] = recomendacion(s)
+            if not s.get("brief"):  # versiones antiguas: brief de plantilla para no mostrar vacío
+                from .strategy import fallback
+                s["brief"] = fallback(s, fx)
             s["brief_md"] = render(s, by)
             sig.append(s)
         d = {k: v[k] for k in ("v", "ts", "evento", "fuentes", "descartadas", "log", "diff")}

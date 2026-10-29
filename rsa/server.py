@@ -162,6 +162,9 @@ def serve(eng: Engine, port=8765, open_browser=True):
         print("  Motor:", (v.get("motor") or {}).get("modo"), "·", (v.get("motor") or {}).get("aviso", "ok"))
     else:  # regenerar siempre la UI con el código actual (evita servir un reporte viejo)
         from . import report
+        n = eng.ensure_briefs()
+        if n:
+            print(f"  Briefs estratégicos completados para {n} señales de la versión guardada")
         report.write(eng.state, eng.out / "reporte.html")
     print("  Motor activo:", "Claude decide, reglas auditan" if eng.motor_mode() == "claude" else
           "solo reglas (no hay ANTHROPIC_API_KEY en .env o se forzó --solo-reglas)")
