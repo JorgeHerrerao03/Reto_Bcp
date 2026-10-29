@@ -57,6 +57,14 @@ class Trampas(unittest.TestCase):
         self.assertTrue(any("No recomiendo eliminar" in m for m in s["no_afirmo"]))
         self.assertNotIn("eliminar", s["recomendacion"] if "recomendacion" in s else "")
 
+    def test_brief_estrategico_plantilla(self):
+        s = self.sig("seguro")
+        b = s["brief"]
+        for k in ("titular", "oportunidad", "por_que_importa", "objetivo", "plan", "decision", "riesgos"):
+            self.assertTrue(b[k], k)
+        sids = {c["sid"] for c in s["claims"]}
+        self.assertTrue(all(x["cita"] in sids for k in ("sabemos", "creemos", "confirmar", "plan") for x in b[k]))
+
     def test_herramienta_web_vs_sucursal(self):
         calls = [e for e in self.v["log"] if e["accion"] == "consulta_herramienta"]
         self.assertEqual([c["args"][1] for c in calls], ["Web", "Sucursal"])

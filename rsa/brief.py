@@ -25,10 +25,42 @@ def _tesis(sig):
     return h
 
 
+def strategic_md(sig) -> str:
+    B = sig.get("brief")
+    if not B:
+        return ""
+    L = [f"# {B['titular']}", "",
+         f"**Opportunity Brief · {sig['id']}** · {sig['titulo']} · Prioridad **{sig['score']}/100** · "
+         f"Madurez {sig['confianza']} · Áreas: {', '.join(sig['areas'])}  ",
+         f"**Recomendación:** {recomendacion(sig)}", "",
+         "## La oportunidad", B["oportunidad"], "",
+         "## Por qué importa", B["por_que_importa"], "",
+         "## Objetivo", B["objetivo"], "",
+         "## Alcance", "**Incluye:** " + "; ".join(B["alcance"]["incluye"]) + "  ",
+         "**No incluye:** " + "; ".join(B["alcance"]["excluye"]), ""]
+    for k, t in (("sabemos", "Lo que sabemos"), ("creemos", "Lo que creemos (por validar)"),
+                 ("confirmar", "Lo que necesitamos confirmar")):
+        if B.get(k):
+            L += [f"## {t}"] + [f"- {x['texto']} [{x['cita']}]" for x in B[k]] + [""]
+    if B.get("plan"):
+        L += ["## Plan de acción", "| # | Acción | Responsable | Evidencia |", "|---|---|---|---|"] + [
+            f"| {i} | {x['paso']} | {x['responsable']} | {x['cita']} |" for i, x in enumerate(B["plan"], 1)] + [""]
+    if B.get("decision"):
+        L += ["## Criterios de decisión", "| Si… | Entonces… |", "|---|---|"] + [
+            f"| {x['si']} | {x['entonces']} |" for x in B["decision"]] + [""]
+    if B.get("riesgos"):
+        L += ["## Riesgos y lo que no afirmamos"] + [f"- {r}" for r in B["riesgos"]] + [""]
+    return "\n".join(L) + "\n---\n\n"
+
+
 def render(sig, sources) -> str:
+    return strategic_md(sig) + _evidence(sig, sources)
+
+
+def _evidence(sig, sources) -> str:
     act = [c for c in sig["claims"] if not c.get("superada")]
     by = lambda t: [c for c in act if c["tipo"] == t]
-    L = [f"# Opportunity Brief · {sig['id']} · {sig['titulo']}", "",
+    L = [f"# {'Anexo · Evidencia y trazabilidad' if sig.get('brief') else 'Opportunity Brief'} · {sig['id']} · {sig['titulo']}", "",
          f"**Score:** {sig['score']} / 100 · impacto {sig['componentes']['impacto']} · evidencia "
          f"{sig['componentes']['evidencia']} · urgencia {sig['componentes']['urgencia']}  ",
          f"**Madurez de evidencia:** {sig['confianza']} · **Áreas:** {', '.join(sig['areas'])}  ",

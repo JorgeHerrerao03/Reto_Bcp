@@ -10,7 +10,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from . import brief, llm
+from . import brief, llm, strategy
 from .analyze import analyze
 from .brain import Brain
 from .convert import raw_text, to_markdown
@@ -135,6 +135,10 @@ class Engine:
             with ThreadPoolExecutor(4) as ex:
                 for s, r in zip(res["signals"], ex.map(ai.summary, res["signals"])):
                     s["resumen_llm"] = r
+            fx = {s.id: {"area": s.area, "titulo": s.titulo} for s in srcs}
+            with ThreadPoolExecutor(4) as ex:
+                for s, b in zip(res["signals"], ex.map(lambda x: strategy.build(x, fx, ai), res["signals"])):
+                    s["brief"] = b
             ai.save()
             res["log"].extend(ai.events)
             ai.events = []
@@ -146,6 +150,9 @@ class Engine:
             res["log"].extend(ai.events)
             ai.events = []
             res["motor"]["modo"] = "reglas"
+        fx = {s.id: {"area": s.area, "titulo": s.titulo} for s in srcs}
+        for s in res["signals"]:
+            s.setdefault("brief", strategy.fallback(s, fx))
         self._assign_ids(res["signals"])
         prev = self.state["versiones"][-1] if self.state["versiones"] else None
         ver = {"v": len(self.state["versiones"]) + 1, "ts": datetime.now().isoformat(timespec="seconds"),
@@ -243,7 +250,7 @@ class Engine:
         for s in ver["signals"]:
             md = brief.render(s, by_id)
             if s.get("resumen_llm"):
-                md = md.replace("## Tesis", f"## Resumen (Claude, citas validadas)\n{s['resumen_llm']}\n\n## Tesis", 1)
+                md = md.replace("## Tesis", f"## Síntesis de la evidencia (Claude, citas validadas)\n{s['resumen_llm']}\n\n## Tesis", 1)
             (bd / f"{s['id']}_brief.md").write_text(md, encoding="utf-8")
             (bd / f"{s['id']}_traza.md").write_text(brief.trace(s, ver["log"]), encoding="utf-8")
             try:

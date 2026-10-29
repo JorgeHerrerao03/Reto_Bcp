@@ -39,22 +39,35 @@ def _bullet(text, sid=None, extra=None, mark="•"):
     return _p(*runs, ind=280, after=60)
 
 
-def _table(rows, widths, header=True, fill="EEF2FB"):
+def _cell_paras(val, bold, color):
+    if isinstance(val, list):
+        return "".join(_p(_run("•  ", color=GREY, size=18), _run(v, size=18), after=30) for v in val) or _p(after=20)
+    return _p(_run(val, b=bold, color=color, size=18), after=40)
+
+
+def _table(rows, widths, header=True, fill="EEF2FB", head_fill=BLUE):
     grid = "".join(f'<w:gridCol w:w="{w}"/>' for w in widths)
     out = []
     for ri, row in enumerate(rows):
         cells = []
         for ci, val in enumerate(row):
-            sh = f'<w:shd w:val="clear" w:color="auto" w:fill="{BLUE if header and ri == 0 else fill}"/>'
-            col = "FFFFFF" if header and ri == 0 else None
+            is_h = header and ri == 0
+            sh = f'<w:shd w:val="clear" w:color="auto" w:fill="{head_fill if is_h else fill}"/>'
             cells.append(f'<w:tc><w:tcPr><w:tcW w:w="{widths[ci]}" w:type="dxa"/>{sh}</w:tcPr>'
-                         f'{_p(_run(val, b=header and ri == 0, color=col, size=18), after=40)}</w:tc>')
+                         f'{_cell_paras(val, is_h, "FFFFFF" if is_h else None)}</w:tc>')
         out.append(f"<w:tr>{''.join(cells)}</w:tr>")
     borders = "".join(f'<w:{b} w:val="single" w:sz="4" w:color="E3E8F2"/>' for b in
                       ("top", "left", "bottom", "right", "insideH", "insideV"))
     return f'<w:tbl><w:tblPr><w:tblW w:w="{sum(widths)}" w:type="dxa"/><w:tblBorders>{borders}</w:tblBorders>' \
-           f'<w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr>' \
-           f'<w:tblGrid>{grid}</w:tblGrid>{"".join(out)}</w:tbl>'
+           f'<w:tblCellMar><w:top w:w="60" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="60" w:type="dxa"/>' \
+           f'<w:right w:w="120" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>{grid}</w:tblGrid>{"".join(out)}</w:tbl>'
+
+
+def _box(title, text, fill="FFF3E8", color=ORANGE):
+    return _table([[title], [text]], [9638], header=True, fill=fill, head_fill=color)
+
+
+PAGE_BREAK = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
 
 
 def _logo_drawing(cx, cy):
@@ -81,34 +94,58 @@ def _logo_size(png: bytes, height_emu=380000):
 
 def build(sig, fuentes: dict, ver: dict, logo: bytes | None = None) -> bytes:
     C = sig["componentes"]
-    act = [c for c in sig["claims"] if not c.get("superada")]
+    B = sig.get("brief") or {}
     motor = (ver.get("motor") or {}).get("modo", "reglas")
+    rec = sig.get("recomendacion", "")
     body = []
-    body.append(_p(_run("OPPORTUNITY BRIEF", b=True, color=ORANGE, size=18), after=0))
-    body.append(_p(_run(f"{sig['id']} · {sig['titulo']}", b=True, color=BLUE, size=36), after=60))
-    body.append(_p(_run(f"Versión v{ver['v']} · {ver['evento']} · generado {datetime.now():%d/%m/%Y %H:%M} · "
-                        f"motor: {'Claude decide, reglas auditan' if motor == 'claude' else 'reglas'}", color=GREY, size=18),
-                   after=160))
-    body.append(_table([["Score", "Recomendación", "Madurez de evidencia", "Áreas"],
-                        [f"{sig['score']} / 100", sig.get("recomendacion", ""), sig["confianza"], ", ".join(sig["areas"])]],
-                       [1300, 3900, 1700, 2460]))
-    body.append(_p(after=60))
-    body.append(_table([["Impacto (45 %)", "Evidencia (30 %)", "Urgencia (25 %)", "Penalización"],
-                        [str(C["impacto"]), str(C["evidencia"]), str(C["urgencia"]), f"−{C.get('penalizacion', 0)}"]],
-                       [2340, 2340, 2340, 2340]))
+    # ---------------- PÁGINA 1-2: BRIEF ESTRATÉGICO ----------------
+    body.append(_p(_run(f"OPPORTUNITY BRIEF · {sig['id']}", b=True, color=ORANGE, size=18), after=0))
+    body.append(_p(_run(B.get("titular") or sig["titulo"], b=True, color=BLUE, size=38), after=40))
+    body.append(_p(_run(f"{sig['titulo']}  ·  Prioridad {sig['score']}/100  ·  Madurez de evidencia {sig['confianza']}  ·  "
+                        f"Áreas: {', '.join(sig['areas'])}", color=GREY, size=18), after=40))
+    body.append(_p(_run("Recomendación: ", b=True, color=BLUE, size=20), _run(rec, size=20), after=160))
+    if B:
+        body.append(_box("LA OPORTUNIDAD", B["oportunidad"]))
+        body.append(_p(after=60))
+        body.append(_table([["Por qué importa", "Objetivo"], [B["por_que_importa"], B["objetivo"]]], [4819, 4819]))
+        body.append(_p(after=60))
+        body.append(_table([["Alcance: incluye", "No incluye"], [B["alcance"]["incluye"], B["alcance"]["excluye"]]],
+                           [4819, 4819], fill="F7F8FB"))
+        for key, title in (("sabemos", "Lo que sabemos"), ("creemos", "Lo que creemos (por validar)"),
+                           ("confirmar", "Lo que necesitamos confirmar")):
+            if B.get(key):
+                body.append(_h(title, size=24, before=200))
+                body += [_bullet(x["texto"], x["cita"]) for x in B[key]]
+        if B.get("plan"):
+            body.append(_h("Plan de acción", size=24, before=200))
+            body.append(_table([["#", "Acción", "Responsable", "Evidencia"]] +
+                               [[str(i), x["paso"], x["responsable"], x["cita"]] for i, x in enumerate(B["plan"], 1)],
+                               [400, 5838, 2200, 1200]))
+        if B.get("decision"):
+            body.append(_h("Criterios de decisión", size=24, before=200))
+            body.append(_table([["Si…", "Entonces…"]] + [[x["si"], x["entonces"]] for x in B["decision"]],
+                               [4819, 4819], fill="F7F8FB"))
+        if B.get("riesgos"):
+            body.append(_h("Riesgos y lo que no afirmamos", color=RED, size=24, before=200))
+            body += [_bullet(r) for r in B["riesgos"]]
     if sig.get("resumen_llm"):
-        body.append(_h("Resumen ejecutivo"))
-        body.append(_p(_run(sig["resumen_llm"]), shade="EEF2FB", after=80))
-    if sig["no_afirmo"]:
-        body.append(_h("Lo que NO afirmo", color=RED))
-        body += [_bullet(m) for m in sig["no_afirmo"]]
+        body.append(_h("Síntesis de la evidencia", size=24, before=200))
+        body.append(_p(_run(sig["resumen_llm"], size=20), shade="EEF2FB", after=80))
+    body.append(_p(_run(f"Prioridad = 45 % impacto ({C['impacto']}) + 30 % evidencia ({C['evidencia']}) + 25 % urgencia "
+                        f"({C['urgencia']})" + (f" − {C['penalizacion']} por evidencia refutada" if C.get("penalizacion") else "") +
+                        f" · Redacción: {'Claude, con citas validadas' if B.get('origen') == 'claude' else 'plantilla + evidencia'}"
+                        f" · Versión v{ver['v']} ({ver['evento']}) · {datetime.now():%d/%m/%Y %H:%M}", color=GREY, size=16, i=True),
+                   before=200))
+    # ---------------- ANEXOS ----------------
+    body.append(PAGE_BREAK)
+    body.append(_p(_run("ANEXO · EVIDENCIA Y TRAZABILIDAD", b=True, color=ORANGE, size=18), after=40))
     for t in ("hecho", "hipotesis", "faltante", "correccion", "advertencia"):
         xs = [c for c in sig["claims"] if c["tipo"] == t]
         rows = [c for c in xs if c["texto"].startswith("Fila ")]
         xs = [c for c in xs if not c["texto"].startswith("Fila ")] + rows[:3]
         if not xs:
             continue
-        body.append(_h(f"{ETQ[t]} ({len(xs) + max(0, len(rows) - 3)})"))
+        body.append(_h(f"{ETQ[t]} ({len(xs) + max(0, len(rows) - 3)})", size=22, before=160))
         if len(rows) > 3:
             body.append(_p(_run(f"Incluye {len(rows)} filas de tabla; se muestran 3 (detalle completo en la fuente "
                                 f"{rows[0]['fuente']}).", i=True, color=GREY, size=18), ind=280))
@@ -117,28 +154,26 @@ def build(sig, fuentes: dict, ver: dict, logo: bytes | None = None) -> bytes:
                 f"confirmada por [{c['confirmada_por']}]" if c.get("confirmada_por") else None)
             body.append(_bullet(c["texto"], c["sid"], extra))
     if sig["consultas"]:
-        body.append(_h("Consulta a la herramienta local"))
+        body.append(_h("Consulta a la herramienta local", size=22, before=160))
         for c in sig["consultas"]:
             body.append(_bullet(f"consultar_parametros.py {' '.join(c['args'])} → {c['lectura']}"))
         adv = sig["consultas"][0]["resultado"].get("advertencia")
         if adv:
             body.append(_p(_run(f"⚠ {adv}", i=True, color=GREY, size=18), ind=280))
-    if sig["proximos_pasos"]:
-        body.append(_h("Próximos pasos"))
-        body += [_bullet(p["texto"], p["sid"], mark=f"{i}.") for i, p in enumerate(sig["proximos_pasos"], 1)]
     A = sig.get("auditoria") or {}
     if A.get("motor") == "claude":
-        body.append(_h("Auditoría Claude vs. reglas"))
+        body.append(_h("Auditoría Claude vs. reglas", size=22, before=160))
         body.append(_p(_run(f"Claude clasificó {A['por_claude']} de {A['oraciones']} oraciones; las reglas coinciden en "
                             f"{A['coinciden']}. Discrepancias: {len(A['discrepancias'])}. Relaciones en disputa: "
                             f"{len(A.get('relaciones_en_disputa') or [])}.", size=20)))
         sids = {c["sid"] for c in sig["claims"]}
         for cm in [c for c in (ver.get("comites") or []) if any(s in c["objeto"] for s in sids)]:
             body.append(_bullet(f"Comité · {cm['objeto']}: juez {'SÍ' if cm['veredicto'] else 'NO'} — {cm['motivo']}"))
-    body.append(_h("Fuentes"))
+    body.append(_h("Fuentes", size=22, before=160))
     rows = [["ID", "Fecha", "Tipo", "Área", "Título"]] + [
         [f, fuentes[f]["fecha"], fuentes[f]["tipo"], fuentes[f]["area"], fuentes[f]["titulo"]] for f in sig["fuentes"]]
     body.append(_table(rows, [700, 1200, 1500, 2100, 3860]))
+    _ = motor
     sect = ('<w:sectPr><w:headerReference w:type="default" r:id="rIdHdr"/><w:footerReference w:type="default" r:id="rIdFtr"/>'
             '<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1300" w:right="1134" w:bottom="1134" w:left="1134" '
             'w:header="500" w:footer="500"/></w:sectPr>')

@@ -19,7 +19,7 @@ Python ≥ 3.9 · **cero dependencias** · **Claude decide y las reglas auditan*
 | Citar IDs y fragmentos | Cada oración tiene un ID (`F04.3`); todo hallazgo la cita y el clic abre la fuente con la oración resaltada |
 | Hechos / hipótesis / faltantes | Clasificación por oración (más corrección y advertencia), con razón y auditoría de reglas |
 | Incorporar documentos en la entrevista | ＋ Añadir fuente (.md, .txt, .docx, .xlsx, .csv, .pdf, imagen) con previsualización, versión nueva y deshacer; CLI `incorporar` |
-| Opportunity Brief por señal | En pantalla, `out/briefs/Sx_brief.md` y Word (`Sx_brief.docx`) |
+| Opportunity Brief por señal | **Brief estratégico** (oportunidad, por qué importa, objetivo y alcance, lo que sabemos y lo que falta, plan con responsables, criterios de decisión, riesgos) con anexo de evidencia; en pantalla, `.md` y Word |
 | Herramienta local: decidir, invocar y registrar | `tools.py` la invoca solo si infiere producto + canal + parámetro (S1: Web y contraste Sucursal); registra también las omisiones con su motivo. La herramienta no se modifica |
 | Traza observable | Pestaña Traza y `Sx_traza.md`: fuentes consultadas, consultas, resultados y aspectos no resueltos. Es un log de acciones, no razonamiento interno |
 | Actualizar hallazgos ante evidencia nueva | Versiones v1…vN, "Qué cambió y por qué", hipótesis refutadas y faltantes resueltos (`demo/`, `demo/dificiles/`, `demo/adjuntos/`) |
@@ -136,7 +136,7 @@ python -m rsa preguntar "¿hay piloto productivo?"  [--llm antes del comando]
 python -m rsa consultar "Credito Flexible" Web rate_input
 python -m rsa sync fuentes_nuevas         # lo que corre la Action
 python -m rsa demo --caso todos
-python -m unittest discover -s tests -t . -v      # 24 tests (núcleo en modo reglas + modo Claude con stub)
+python -m unittest discover -s tests -t . -v      # 25 tests (núcleo en modo reglas + modo Claude con stub)
 ```
 
 ## 6. Decisiones técnicas

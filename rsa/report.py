@@ -268,10 +268,19 @@ function openSrc(id){const v=V[vi],[fid]=id.split("."),f=v.fuentes.find(x=>x.id=
 function brief(s,d){
   const ch=d&&d.cambios[s.id]; const tr={}; (ch?.transiciones||[]).forEach(t=>tr[t.sid]=t); const nw=new Set((ch?.claims_nuevos||[]).map(c=>c.sid)); const C=s.componentes;
   let h=`<div class="top"><div style="flex:1;min-width:260px"><div class="sub">${s.id} · ${s.areas.join(" · ")}</div><h2>${esc(s.titulo)}</h2><span class="pill">${esc(s.recomendacion)}</span></div>
-  <div><div class="big">${s.score}</div><div class="sub" style="text-align:right">de 100 · madurez ${s.confianza}</div><div style="text-align:right;margin-top:8px">${APP?`<a class="btn sm pri" style="text-decoration:none" href="/api/brief/${s.id}.docx?v=${V[vi].v}">⬇ Word</a> `:""}<button class="btn sm" id="dl-md">⬇ .md</button></div></div></div>
+  <div><div class="big">${s.score}</div><div class="sub" style="text-align:right">de 100 · madurez ${s.confianza}</div><div style="text-align:right;margin-top:8px">${APP?`<a class="btn sm pri" style="text-decoration:none" href="/api/brief/${s.id}.docx?v=${V[vi].v}">⬇ Brief en Word</a> `:""}<button class="btn sm" id="dl-md">⬇ .md</button></div></div></div>
   <div class="tiles">${[["impacto","Impacto"],["evidencia","Evidencia"],["urgencia","Urgencia"]].map(([k,n])=>`<div class="tile"><span>${n} · peso ${Math.round(s.pesos[k]*100)}%</span><b>${C[k]}</b><div class="tb"><i style="width:${C[k]*100}%"></i></div></div>`).join("")}</div>
   ${C.penalizacion?`<div class="sub" style="margin:-6px 0 8px">Penalización por evidencia refutada: <b style="color:var(--ref)">−${C.penalizacion}</b></div>`:""}`;
-  if(s.resumen_llm)h+=`<div class="callout ai"><h4>Resumen ejecutivo · Claude (citas validadas)</h4>${cites(esc(s.resumen_llm))}</div>`;
+  const B=s.brief;if(B){h+=`<div class="callout" style="background:color-mix(in srgb,var(--orange) 8%,var(--panel));border:1px solid color-mix(in srgb,var(--orange) 30%,var(--line))">
+    <h4 style="color:var(--orange2)">Brief estratégico${B.origen==="claude"?" · redactado por Claude":""}</h4>
+    <div style="font-size:18px;font-weight:800;color:var(--bt);margin:2px 0 6px">${esc(B.titular)}</div>
+    <div>${esc(B.oportunidad)}</div>
+    <div class="tiles" style="grid-template-columns:1fr 1fr;margin:12px 0 6px"><div class="tile"><span>Por qué importa</span><div style="font-size:14px">${esc(B.por_que_importa)}</div></div>
+    <div class="tile"><span>Objetivo</span><div style="font-size:14px">${esc(B.objetivo)}</div></div></div>
+    ${B.plan?.length?`<div style="font-weight:800;margin-top:8px">Plan de acción</div><ol class="steps" style="padding-left:20px">${B.plan.map(x=>`<li>${esc(x.paso)} <span class="sub">· ${esc(x.responsable)}</span> ${cites("["+x.cita+"]")}</li>`).join("")}</ol>`:""}
+    ${B.decision?.length?`<div style="font-weight:800;margin-top:8px">Criterios de decisión</div>${B.decision.map(x=>`<div class="hit"><b>Si</b> ${esc(x.si)} → <b>entonces</b> ${esc(x.entonces)}</div>`).join("")}`:""}
+    </div>`}
+  if(s.resumen_llm)h+=`<div class="callout ai"><h4>Síntesis de la evidencia · Claude (citas validadas)</h4>${cites(esc(s.resumen_llm))}</div>`;
   if(s.no_afirmo.length)h+=`<div class="callout no"><h4>Lo que NO afirmo</h4><ul>${s.no_afirmo.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`;
   for(const [t,n,open] of [["hecho","Hechos confirmados",1],["hipotesis","Hipótesis",1],["faltante","Datos faltantes",0],["correccion","Correcciones",1],["advertencia","Advertencias",0]]){const xs=s.claims.filter(c=>c.tipo===t);if(!xs.length)continue;
     const rows=xs.filter(c=>/^Fila \d+ ·/.test(c.texto)), xs2=xs.filter(c=>!/^Fila \d+ ·/.test(c.texto)).concat(rows.slice(0,3));

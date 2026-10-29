@@ -213,6 +213,10 @@ class Brain:
         _, bad, ok = llm._check(txt, [c["sid"] for c in sig["claims"]], [c["texto"] for c in sig["claims"]])
         return txt if ok else None
 
+    # ---------- brief estratégico ----------
+    def strategic(self, sig, prompt):
+        return self._call("brief", [sig["titulo"], prompt], prompt, 2000, sig["titulo"])
+
     # ---------- 5. transcripción de imagen / PDF ----------
     def transcribe(self, data: bytes, media_type: str, filename: str):
         import base64

@@ -54,6 +54,12 @@ def fake_call(prompt, max_tokens=500, system=None, temperature=None):
              "cautelas": ["No cuantificar sin conciliación (stub)"]}
         if "F19.1" in sids and "F17.3" in sids:
             d["relaciones"].append({"de": "F19.1", "a": "F17.3", "relacion": "confirma", "motivo": "stub"})
+    elif "BRIEF ESTRATÉGICO" in prompt:
+        d = {"titular": "Titular stub", "oportunidad": "Oportunidad stub", "por_que_importa": "Importa stub",
+             "objetivo": "Validar stub", "alcance": {"incluye": ["a"], "excluye": ["b"]},
+             "sabemos": [{"texto": "hecho", "cita": sids[0]}, {"texto": "inventado", "cita": "F99.1"}],
+             "creemos": [], "confirmar": [], "plan": [{"paso": "p", "responsable": "Operaciones", "cita": sids[0]}],
+             "decision": [{"si": "x", "entonces": "y"}], "riesgos": ["r"]}
     elif "Argumenta la postura" in prompt:
         d = {"argumento": "stub " + sids[0] if sids else "stub"}
     elif "juez imparcial" in prompt:
@@ -98,6 +104,9 @@ class ClaudeFirst(unittest.TestCase):
         self.assertTrue(all(not x["de"].startswith("F99") for x in s["contradicciones"]))
         self.assertTrue(any("stub" in m for m in s["no_afirmo"]))                # cautelas de Claude
         self.assertTrue(s.get("resumen_llm"))
+        self.assertEqual(s["brief"]["origen"], "claude")
+        self.assertEqual(s["brief"]["titular"], "Titular stub")
+        self.assertTrue(all(x["cita"] != "F99.1" for x in s["brief"]["sabemos"]))   # cita inventada descartada
 
     def test_fuente_en_ingles(self):
         self.eng.run()
