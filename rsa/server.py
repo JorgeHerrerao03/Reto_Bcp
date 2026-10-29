@@ -165,7 +165,11 @@ def serve(eng: Engine, port=8765, open_browser=True):
         n = eng.ensure_briefs()
         if n:
             print(f"  Briefs estratégicos completados para {n} señales de la versión guardada")
-        report.write(eng.state, eng.out / "reporte.html")
+        try:  # reescribe out/briefs (md, traza, docx) y reporte con el código actual
+            eng._write(eng.latest(), {s.id: s for s in eng.sources()})
+        except Exception as e:
+            print("  Aviso: no se pudieron regenerar los briefs:", e)
+            report.write(eng.state, eng.out / "reporte.html")
     print("  Motor activo:", "Claude decide, reglas auditan" if eng.motor_mode() == "claude" else
           "solo reglas (no hay ANTHROPIC_API_KEY en .env o se forzó --solo-reglas)")
     for p in range(port, port + 20):
