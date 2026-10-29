@@ -10,6 +10,22 @@ Agente que lee fuentes internas desordenadas (correos, Teams, actas) y:
 
 Python ≥ 3.9 · **cero dependencias** · **Claude decide y las reglas auditan** · si no hay API, funciona offline solo con reglas.
 
+## Cumplimiento del reto
+
+| Requisito | Cómo se cumple |
+|---|---|
+| Ingestar las 18 fuentes sin editarlas | `corpus.py` lee el índice y los `.md`; huella sha1 por archivo; test `test_originales_intactos` |
+| Señales priorizadas e investigar una | Ranking con score de 0 a 100 (fórmula en §7); clic en la señal → Resumen / Evidencia / Análisis / Traza; CLI `python -m rsa investigar S1` |
+| Citar IDs y fragmentos | Cada oración tiene un ID (`F04.3`); todo hallazgo la cita y el clic abre la fuente con la oración resaltada |
+| Hechos / hipótesis / faltantes | Clasificación por oración (más corrección y advertencia), con razón y auditoría de reglas |
+| Incorporar documentos en la entrevista | ＋ Añadir fuente (.md, .txt, .docx, .xlsx, .csv, .pdf, imagen) con previsualización, versión nueva y deshacer; CLI `incorporar` |
+| Opportunity Brief por señal | En pantalla, `out/briefs/Sx_brief.md` y Word (`Sx_brief.docx`) |
+| Herramienta local: decidir, invocar y registrar | `tools.py` la invoca solo si infiere producto + canal + parámetro (S1: Web y contraste Sucursal); registra también las omisiones con su motivo. La herramienta no se modifica |
+| Traza observable | Pestaña Traza y `Sx_traza.md`: fuentes consultadas, consultas, resultados y aspectos no resueltos. Es un log de acciones, no razonamiento interno |
+| Actualizar hallazgos ante evidencia nueva | Versiones v1…vN, "Qué cambió y por qué", hipótesis refutadas y faltantes resueltos (`demo/`, `demo/dificiles/`, `demo/adjuntos/`) |
+| Modelos, dependencias, costos, determinístico vs. agentic | §3 y §7. Cero dependencias; Claude Haiku 5.5 opcional, menos de USD 0.01 por corrida |
+| No enviar información real a servicios externos | Solo se envían las fuentes sintéticas del reto; `--solo-reglas` no hace ninguna llamada externa |
+
 ---
 
 ## 1. Inicio rápido (Windows)
@@ -28,7 +44,7 @@ La app corre en `http://127.0.0.1:8765` y escucha solo en tu PC.
 |---|---|
 | **＋ Añadir fuente** | Arrastras un `.md`, `.txt`, `.docx` (incluye tablas), `.xlsx`, `.csv`, `.pdf` o una imagen, o pegas texto. El ID y la fecha se autocompletan |
 | **Previsualizar impacto** | Muestra qué cambiaría *antes* de incorporar: scores, refutaciones y la clasificación de cada oración. No guarda nada |
-| **Segunda opinión de Claude** | Claude propone relaciones (refuta, confirma, resuelve) entre la fuente nueva y la evidencia existente. Solo se aceptan IDs que existen |
+| **Claude vs. reglas + comité** | En la previsualización y en Resumen: razón de Claude por oración, ⚠ cuando las reglas discrepan y veredicto del comité (SÍ / NO + juez) |
 | **Máquina del tiempo** | v1 → vN, con ▲▼ por señal, transiciones (hipótesis → refutada) y un resumen de "qué cambió" |
 | **Deshacer última** | Retira la última fuente incorporada |
 | **Demos** | Contradice (F19), confirma (F20) y ruido (F21), para ensayar la entrevista |
@@ -37,7 +53,7 @@ La app corre en `http://127.0.0.1:8765` y escucha solo en tu PC.
 | **Matriz impacto × evidencia** | Cuadrantes: actuar, investigar, monitorear |
 | **¿Y si cambio los pesos?** | Sliders que re-rankean en vivo, para discutir supuestos de negocio |
 | **⬇ Word / .md / Imprimir PDF** | Opportunity Brief en Word (.docx) con membrete; el logo solo se incluye si existe `marca/logo.png` local |
-| **Claude ⚙** | Configura la API key, prueba la conexión y genera resúmenes ejecutivos |
+| **⋯ → Conectar Claude** | Configura la API key, prueba la conexión y re-analiza (los resúmenes ejecutivos se generan solos) |
 
 ## 3. Motor Claude-first (las reglas auditan)
 
@@ -123,7 +139,19 @@ python -m rsa demo --caso todos
 python -m unittest discover -s tests -t . -v      # 24 tests (núcleo en modo reglas + modo Claude con stub)
 ```
 
-## 6. Arquitectura
+## 6. Decisiones técnicas
+
+1. **Cero dependencias (solo stdlib).** Funciona igual en cualquier Windows o Linux, en CI y empaquetado como `.exe`; nada que instalar el día de la entrevista.
+2. **Claude decide y las reglas auditan.** El LLM entiende redacción libre (informal, spanglish, inglés). Las reglas dan una base reproducible, marcan las discrepancias (⚠) y son el respaldo automático si la API falla.
+3. **Score determinístico.** Claude clasifica, pero la priorización es una fórmula explícita (45/30/25 − refutaciones) que se puede discutir con los sliders. Se separa *importancia* (score) de *certeza* (madurez).
+4. **Cifras solo por código.** En tablas e imágenes, totales, promedios y comparaciones los calcula Python. Claude solo puede citar cifras que ya están en la evidencia; si no, su texto se descarta.
+5. **Citas por oración y validación de IDs.** Todo lo que Claude devuelve es JSON validado: IDs inexistentes, relaciones hacia atrás en el tiempo o cifras inventadas se rechazan.
+6. **Comité solo ante discrepancias** (postura SÍ ∥ postura NO → juez, máx. 3 por análisis). Agrega robustez donde hay duda, sin multiagente permanente: costo y latencia acotados.
+7. **Versionado inmutable.** Cada fuente nueva crea una versión; nada se sobrescribe y se puede deshacer. Así se demuestra el "antes / después" que evalúa la entrevista.
+8. **Caché por contenido.** Repetir un análisis no vuelve a llamar a la API: misma entrada, mismo resultado y costo cero.
+9. **La herramienta se ejecuta sin modificarla**, en proceso (`runpy`), con una política explícita de cuándo consultarla. Se valora el criterio, no el volumen.
+
+## 7. Arquitectura
 
 ```
 ingesta (CSV + md, sha1) → relevancia (léxico económico / declaración de no-impacto)
@@ -149,7 +177,7 @@ ingesta (CSV + md, sha1) → relevancia (léxico económico / declaración de no
 | Ingesta, IDs por oración, score, diff, caché, validaciones | Relevancia, agrupamiento, tipo de oración, relaciones, cautelas, resumen |
 | Reglas como auditor y respaldo automático | Comité SÍ/NO + juez solo ante discrepancias |
 
-## 7. Resultado sobre el paquete
+## 8. Resultado sobre el paquete (modo reglas; con Claude los scores pueden variar levemente)
 
 | Señal | Fuentes | Clave |
 |---|---|---|
@@ -159,7 +187,7 @@ ingesta (CSV + md, sha1) → relevancia (léxico económico / declaración de no
 | S4 Día de pago | F08–F12 | F12 refuta a F11 (maqueta ≠ piloto); la herramienta se omite porque falta el producto |
 | Ruido | F13–F16 | Cada una se descarta citando su declaración de no-impacto |
 
-## 8. Limitaciones
+## 9. Limitaciones
 
 - Claude no es 100 % reproducible: se mitiga con caché por contenido y auditoría de las reglas. Las discrepancias quedan visibles.
 - Sin API, el respaldo vuelve a las heurísticas léxicas, que se amplían en `lexicon.py`.

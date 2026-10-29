@@ -14,10 +14,10 @@ Antes de empezar: doble clic en `Iniciar_RevenueSignals.bat` y luego **Reiniciar
 
 ## Entrevista: fuentes nuevas
 
-1. **＋ Añadir fuente**: pegar el texto o arrastrar el archivo, que puede ser .md, .txt o .docx.
-2. **Previsualizar**: leer "Qué cambiaría" y "Cómo clasifiqué cada oración". Si hay key, activar la *Segunda opinión de Claude*.
+1. **＋ Añadir fuente**: pegar el texto o arrastrar el archivo (.md, .txt, .docx, .xlsx, .csv, .pdf o imagen).
+2. **Previsualizar**: leer "Contenido extraído", "Qué cambiaría" y "Cómo se clasificó cada oración" (razón de Claude, "⚠ reglas decían…" y comité si lo hubo).
 3. **Incorporar** y explicar el diff. Si algo no convence, usar **Deshacer última**.
-4. Si una contradicción no se detecta, mostrar `lexicon.py` (cues de CORRECCION) y explicar el trade-off entre la auditabilidad de las reglas y la cobertura del LLM.
+4. Si Claude no está disponible (red), la app avisa "Motor: solo reglas". Explicar el trade-off: las reglas son auditables pero de cobertura limitada; Claude entiende la redacción libre y las reglas lo auditan.
 
 ## Si te traen lenguaje no normalizado (inglés, informal)
 
@@ -33,3 +33,10 @@ Antes de empezar: doble clic en `Iniciar_RevenueSignals.bat` y luego **Reiniciar
 4. Muestra cómo el faltante F04.4/F04.5 pasa a **resuelto** y el cambio de score.
 
 Para ensayarlo: `demo\adjuntos\adjunto_F04_muestra.xlsx` y `demo\adjuntos\captura_parametros_produccion.png`.
+
+## Antes de la entrevista (checklist)
+
+- [ ] Abrir la app y confirmar **"Motor: Claude decide, reglas auditan"** (o ensayar en modo reglas si la red bloquea la API).
+- [ ] No reiniciar justo antes: la caché asegura los mismos números que ensayaste.
+- [ ] Tener a mano `demo\adjuntos\adjunto_F04_muestra.xlsx`, `demo\dificiles\F23_correccion_informal.md` y el link de GitHub Pages.
+- [ ] Hotspot del celular como respaldo de red.
