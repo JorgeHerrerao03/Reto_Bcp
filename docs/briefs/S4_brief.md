@@ -16,7 +16,7 @@ Validar la preferencia del cliente y simular el impacto financiero antes de pasa
 **Incluye:** Segmentación de reclamos y preferencias; Simulación financiera (devengo, flujos, mora); Diseño de un piloto  
 **No incluye:** Despliegue productivo sin simulación ni aprobación
 
-## Lo que cambió con la nueva evidencia
+## Aclaraciones entre las fuentes del paquete
 - Canales declara «Canales informa que se creó una maqueta navegable, pero que no existe todavía habilitación productiva del selector de fechas.»: deja sin efecto F11.1 y resuelve F11.2. [F12.1]
 
 ## Lo que sabemos
