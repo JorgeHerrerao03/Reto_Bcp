@@ -216,7 +216,8 @@ try{const t=localStorage.getItem("rs-theme");if(t)document.documentElement.datas
 const st=c=>c.superada||c.tipo;
 const short=r=>r.startsWith("Investigar con prioridad")?"Prioridad alta":r.startsWith("Investigar")?"Investigar":"Monitorear";
 function toast(m,ms=3500){const t=$("#toast");t.textContent=m;t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",ms)}
-async function api(path,body){const r=await fetch(path,{method:body===undefined?"GET":"POST",headers:{"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)});
+async function api(path,body){const opt={method:body===undefined?"GET":"POST",headers:{"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)};
+  let r;try{r=await fetch(path,opt)}catch(e){await new Promise(x=>setTimeout(x,600));try{r=await fetch(path,opt)}catch(e2){throw new Error(`Sin conexión con la app local (${location.host}). Revisa que la ventana negra siga abierta y que esta pestaña sea la que abrió el .bat; luego recarga con Ctrl+F5.`)}}
   const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j}
 function prevSig(id){return vi>0?V[vi-1].signals.find(s=>s.id===id):null}
 // ---------- header ----------
