@@ -26,6 +26,11 @@ def _slim(state):
             from .strategy import apply_cambios
             s["brief"] = apply_cambios(dict(s["brief"]), s, fx)  # recalculado: sirve también a versiones guardadas
             s["brief_md"] = render(s, by)
+            from .tools import explain
+            for i, c in enumerate(s.get("consultas") or []):  # versiones guardadas sin motivo: se reconstruye
+                if "motivo" not in c:
+                    c = s["consultas"][i] = {**c, "contraste": i > 0}
+                    c["motivo"], c["evidencia"] = explain(s, c["args"], c["contraste"])
             sig.append(s)
         d = {k: v[k] for k in ("v", "ts", "evento", "fuentes", "descartadas", "log", "diff")}
         d.update({k: v.get(k) for k in ("motor", "comites", "auditoria_relevancia")})
@@ -266,7 +271,20 @@ function render(){
 }
 $("#vsel").onchange=e=>{vi=+e.target.value;render()};$("#vprev").onclick=()=>{if(vi>0){vi--;render()}};$("#vnext").onclick=()=>{if(vi<V.length-1){vi++;render()}};
 function cites(h){return h.replace(/\[(F\d+(?:\.\d+)?)\]/g,(m,id)=>`<button class="cite" data-src="${id}">[${id}]</button>`)}
-function bindCites(){document.querySelectorAll("[data-src]").forEach(b=>b.onclick=e=>{e.stopPropagation();openSrc(b.dataset.src)})}
+function bindCites(){document.querySelectorAll("[data-src]").forEach(b=>b.onclick=e=>{e.stopPropagation();openSrc(b.dataset.src)});
+  document.querySelectorAll("[data-tool]").forEach(b=>b.onclick=e=>{e.stopPropagation();openTool(b.dataset.tool)})}
+function openTool(id){const s=V[vi].signals.find(x=>x.id===id);if(!s)return;const om=(V[vi].log||[]).filter(e=>e.accion==="consulta_omitida");
+  $("#drawer").innerHTML=`<button class="x" onclick="this.parentNode.classList.remove('on')">✕</button><div class="sub">${s.id} · ${esc(s.titulo)}</div>
+  <h2 style="margin:8px 0 10px;font-size:20px;color:var(--bt)">¿Por qué consulté la base de parámetros?</h2>
+  <p>Las fuentes dicen lo que <b>la gente cree</b> (correos, chats, actas); la herramienta <span class="mono">consultar_parametros.py</span> muestra lo que <b>registra el sistema</b>. La consulto solo cuando la evidencia define con precisión <b>producto, canal y parámetro</b>; si falta alguno, la omito y lo dejo en la traza.</p>
+  ${s.consultas.map((c,i)=>`<div class="tool" style="margin:12px 0"><div style="font-weight:800">Consulta ${i+1}${c.contraste?" · contraste":""}</div><span class="mono">consultar_parametros.py ${c.args.map(a=>"'"+esc(a)+"'").join(" ")}</span>
+    <div style="margin-top:6px"><b>Por qué:</b> ${esc(c.motivo||"")}</div>
+    ${(c.evidencia||[]).length?`<div><b>Evidencia que lo motivó:</b> ${cites(c.evidencia.map(x=>"["+x+"]").join(" "))}</div>`:""}
+    <div><b>Qué respondió:</b> ${cites(esc(c.lectura||""))}</div></div>`).join("")}
+  <p><b>Cómo lo uso:</b> el resultado es un dato más que se contrasta con las fuentes; no prueba por sí solo una pérdida ni la cuantifica.</p>
+  <div class="warn">⚠ ${esc(s.consultas[0]?.resultado?.advertencia||"")}</div>
+  ${om.length?`<p class="sub">En otras señales la consulta se omitió: ${om.map(e=>esc(e.senal)+" ("+esc(e.motivo)+")").join("; ")}.</p>`:""}`;
+  $("#drawer").classList.add("on");bindCites()}
 function openSrc(id){const v=V[vi],[fid]=id.split("."),f=v.fuentes.find(x=>x.id===fid);if(!f)return;
   $("#drawer").innerHTML=`<button class="x" onclick="this.parentNode.classList.remove('on')">✕</button><div class="sub">${f.id} · ${f.fecha} · ${esc(f.tipo)} · ${esc(f.area)}${f.origen==="incorporada"?" · <b style='color:var(--orange2)'>incorporada</b>":""}</div>
   <h2 style="margin:8px 0 14px;font-size:20px;color:var(--bt)">${esc(f.titulo)}</h2>${f.sents.map(x=>`<p class="${x.sid===id?"hl":""}"><span class="mono sub">${x.sid}</span> ${esc(x.texto)}</p>`).join("")}<div class="sub mono" style="margin-top:14px">sha1 ${f.sha1}</div>`;
@@ -318,11 +336,11 @@ function graph(v){
     r.ids.forEach((id,j)=>{const x=x0+j*step+20;pos[id]={x,y};const f=v.fuentes.find(z=>z.id===id);
       svg+=`<g data-src="${id}" style="cursor:pointer"><circle cx="${x}" cy="${y+4}" r="15" fill="var(--panel)" stroke="${!r.s?"var(--mut)":f.origen==="incorporada"?"var(--orange)":"var(--blue2)"}" stroke-width="${f.origen==="incorporada"?3:1.8}"/><text x="${x}" y="${y+8}" text-anchor="middle" font-weight="800">${id.slice(1)}</text><text class="m" x="${x}" y="${y+32}" text-anchor="middle" font-size="9.5">${f.fecha.slice(5)}</text></g>`;
       if(j>0){const p=pos[r.ids[j-1]];ln+=`<line x1="${p.x+15}" y1="${y+4}" x2="${x-15}" y2="${y+4}" stroke="var(--line)" stroke-width="2"/>`}});
-    if(r.s&&r.s.consultas.length){const x=Wd-80;svg+=`<rect x="${x-11}" y="${y-7}" width="22" height="22" rx="3" transform="rotate(45 ${x} ${y+4})" fill="none" stroke="var(--orange)" stroke-width="2"/><text x="${x+22}" y="${y+8}" style="fill:var(--orange2)" font-weight="700">tool ×${r.s.consultas.length}</text>`}});
+    if(r.s&&r.s.consultas.length){const x=Wd-80;svg+=`<g data-tool="${r.s.id}" style="cursor:pointer"><title>¿Por qué consulté la base de parámetros?</title><rect x="${x-11}" y="${y-7}" width="22" height="22" rx="3" transform="rotate(45 ${x} ${y+4})" fill="var(--panel)" stroke="var(--orange)" stroke-width="2"/><text x="${x+22}" y="${y+8}" style="fill:var(--orange2)" font-weight="700" text-decoration="underline">tool ×${r.s.consultas.length}</text></g>`}});
   const E={};v.signals.forEach(s=>s.contradicciones.forEach(c=>{const k=c.de.split(".")[0]+">"+c.a.split(".")[0];(E[k]=E[k]||{de:c.de.split(".")[0],a:c.a.split(".")[0],rels:[]}).rels.push(c.de+" "+c.relacion+" "+c.a)}));
   Object.values(E).forEach(e=>{const a=pos[e.de],b=pos[e.a];if(!a||!b)return;const rf=e.rels.some(r=>r.includes("refuta")),col=rf?"var(--ref)":"var(--res)",mx=(a.x+b.x)/2,my=a.y-22-Math.min(26,Math.abs(a.x-b.x)*.06);
     svg+=`<path d="M${a.x} ${a.y-11} Q${mx} ${my} ${b.x} ${b.y-11}" fill="none" stroke="${col}" stroke-width="2" ${rf?"":'stroke-dasharray="4 3"'} marker-end="url(#ar)"><title>${e.rels.join("; ")}</title></path>`});
-  return `<div class="legend"><span><i style="background:var(--ref)"></i>refuta</span><span><i style="background:var(--res)"></i>resuelve un faltante</span><span><i style="background:var(--orange)"></i>fuente incorporada</span><span>◇ consulta a herramienta</span><span>Clic en un círculo = ver la fuente</span></div>
+  return `<div class="legend"><span><i style="background:var(--ref)"></i>refuta</span><span><i style="background:var(--res)"></i>resuelve un faltante</span><span><i style="background:var(--orange)"></i>fuente incorporada</span><span>◇ consulta a herramienta (clic = por qué)</span><span>Clic en un círculo = ver la fuente</span></div>
   <div style="overflow-x:auto"><svg viewBox="0 0 ${Wd} ${H}" width="100%" style="min-width:640px"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--mut)"/></marker></defs>${bg}${ln}${svg}</svg></div>`}
 function matrix(v){
   const Wd=640,H=400,m=56,lo=.3,X=e=>m+(Math.max(e,lo)-lo)/(1-lo)*(Wd-2*m),Y=i=>H-m-(Math.max(i,lo)-lo)/(1-lo)*(H-2*m);

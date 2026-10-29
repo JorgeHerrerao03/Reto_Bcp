@@ -72,6 +72,23 @@ def interpret(calls) -> str:
     return " | ".join(rows)
 
 
+def explain(sig, args, contraste=False):
+    """Por qué se hizo esta consulta: motivo y oraciones de la evidencia que definieron producto/canal/parámetro
+    (o que pidieron contrastar canales)."""
+    prod, canal, param = args
+    al = [norm(prod)] + [k for k, v in L.CANALES.items() if v == canal] + [norm(a) for a in L.PARAMETROS.get(param, [param])]
+    claims = [c for c in sig["claims"] if not c["texto"].startswith("Fila ")]
+    if contraste:
+        ev = [c["sid"] for c in claims if re.search(r"contrast\w* .*otros canales|otros canales", norm(c["texto"]))]
+        motivo = (f"Contraste: la evidencia pide comparar el valor de {next((k for k, v in L.CANAL_CONTRASTE.items() if v == canal), 'el canal observado')} con otros canales "
+                  f"antes de concluir que hay un defecto; se usa {canal} como canal de referencia.")
+    else:
+        ev = [c["sid"] for c in claims if any(re.search(rf"\b{re.escape(a)}\b", norm(c["texto"])) for a in al)]
+        motivo = (f"La evidencia identifica producto ({prod}), canal ({canal}) y parámetro ({param}): se puede "
+                  "verificar en el sistema lo que las fuentes solo sospechan.")
+    return motivo, ev[:4]
+
+
 def make_runner(tool_path: Path, max_calls=2):
     def run(sig, by_id, log):
         pl = plan(sig)
@@ -87,6 +104,8 @@ def make_runner(tool_path: Path, max_calls=2):
                         else "producto/canal/parámetro explícitos en fuentes",
                         "resultado": c["resultado"], "ms": c["ms"]})
         for c in calls:
+            c["contraste"] = c["args"][1] == pl["contraste"]
+            c["motivo"], c["evidencia"] = explain(sig, c["args"], c["contraste"])
             c["lectura"] = interpret([c])
             revs = [r["ultima_revision"] for r in c["resultado"].get("registros", [])]
             post = [f for f in sig["fuentes"] if revs and by_id[f].fecha > max(revs)]
