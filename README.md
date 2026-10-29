@@ -10,6 +10,10 @@ Agente que lee fuentes internas desordenadas (correos, Teams, actas) y:
 
 Python ≥ 3.9 · **cero dependencias** · **Claude decide y las reglas auditan** · si no hay API, funciona offline solo con reglas.
 
+> **Para ejecutarlo (evaluador):** instalar Python 3.9+ ([python.org](https://www.python.org/downloads/), marcar *Add Python to PATH*) y hacer doble clic en `Iniciar_RevenueSignals.bat` (macOS/Linux: `./Iniciar_RevenueSignals.sh`). Se abre la app en el navegador; sin API key corre en **modo reglas**, sin conexión a internet. Opcional: ⋯ → *Conectar Claude* con una API key propia de Anthropic. Comprobar que el paquete del reto no fue modificado: `python -m rsa verificar`. Tests: `python -m unittest discover -s tests -t .`
+>
+> Repositorio: https://github.com/JorgeHerrerao03/Reto_Bcp
+
 ## Cumplimiento del reto
 
 | Requisito | Cómo se cumple |
@@ -19,7 +23,7 @@ Python ≥ 3.9 · **cero dependencias** · **Claude decide y las reglas auditan*
 | Citar IDs y fragmentos | Cada oración tiene un ID (`F04.3`); todo hallazgo la cita y el clic abre la fuente con la oración resaltada |
 | Hechos / hipótesis / faltantes | Clasificación por oración (más corrección y advertencia), con razón y auditoría de reglas |
 | Incorporar documentos en la entrevista | ＋ Añadir fuente (.md, .txt, .docx, .xlsx, .csv, .pdf, imagen) con previsualización, versión nueva y deshacer; CLI `incorporar` |
-| Opportunity Brief por señal | **Brief estratégico** (oportunidad, por qué importa, objetivo y alcance, lo que sabemos y lo que falta, plan con responsables, criterios de decisión, riesgos) con anexo de evidencia; en pantalla, `.md` y Word |
+| Opportunity Brief por señal | **Brief estratégico** (oportunidad, por qué importa, objetivo y alcance, lo que sabemos y lo que falta, plan con responsables, criterios de decisión, riesgos) con anexo de evidencia; en pantalla y en Word |
 | Herramienta local: decidir, invocar y registrar | `tools.py` la invoca solo si infiere producto + canal + parámetro (S1: Web y contraste Sucursal); registra también las omisiones con su motivo. La herramienta no se modifica |
 | Traza observable | Pestaña Traza y `Sx_traza.md`: fuentes consultadas, consultas, resultados y aspectos no resueltos. Es un log de acciones, no razonamiento interno |
 | Actualizar hallazgos ante evidencia nueva | Versiones v1…vN, "Qué cambió y por qué", hipótesis refutadas y faltantes resueltos (`demo/`, `demo/dificiles/`, `demo/adjuntos/`) |
@@ -34,7 +38,7 @@ Python ≥ 3.9 · **cero dependencias** · **Claude decide y las reglas auditan*
 |---|---|
 | **Doble clic** | `Iniciar_RevenueSignals.bat` abre la app en el navegador |
 | **Ejecutable .exe** | Ejecuta `build_exe.bat` una vez; genera `RevenueSignals.exe`, que se abre con doble clic. Debe quedar junto a `paquete\` y `demo\` |
-| **Terminal** | `python -m rsa app` |
+| **Terminal** | `python -m rsa app` (macOS/Linux: `python3 -m rsa app` o `./Iniciar_RevenueSignals.sh`) |
 
 La app corre en `http://127.0.0.1:8765` y escucha solo en tu PC.
 
@@ -115,7 +119,7 @@ Con API key configurada, **Claude decide siempre**: entiende español informal, 
 
 ## 4. GitHub: reporte que se actualiza solo
 
-El reporte público vive en `docs/index.html` (GitHub Pages). Para agregar evidencia sin instalar nada:
+(Solo en el repositorio de GitHub; no forma parte de la carpeta entregada.) El reporte público vive en `docs/index.html` (GitHub Pages). Para agregar evidencia sin instalar nada:
 
 1. En GitHub, entra a `fuentes_nuevas/` → **Add file → Create new file**. Usa como base `fuentes_nuevas/PLANTILLA.txt` y guarda el archivo como `F19_algo.md`.
 2. Haz **Commit**. La GitHub Action `Actualizar reporte`:

@@ -60,9 +60,26 @@ def main(argv=None):
     p = sub.add_parser("preguntar"); p.add_argument("pregunta")
     p = sub.add_parser("config", help="guarda la API key de Claude en .env"); p.add_argument("--key"); p.add_argument("--model")
     sub.add_parser("llm-test")
+    sub.add_parser("verificar", help="comprueba que el paquete del reto no fue modificado (MANIFIESTO_SHA256.txt)")
     a = ap.parse_args(argv if argv is not None else (sys.argv[1:] or ["app"]))
     eng = Engine(a.paquete, a.out, a.llm, a.solo_reglas)
 
+    if a.cmd == "verificar":
+        import hashlib
+        from .engine import AGENT_DIR
+        man = AGENT_DIR / "MANIFIESTO_SHA256.txt"
+        ok = bad = 0
+        for line in man.read_text(encoding="utf-8").splitlines():
+            if len(line) > 66 and line[64:66] == "  ":
+                h, rel = line[:64], line[66:]
+                f = eng.paquete / rel
+                if f.exists() and hashlib.sha256(f.read_bytes()).hexdigest() == h:
+                    ok += 1
+                else:
+                    bad += 1
+                    print("MODIFICADO o ausente:", rel)
+        print(f"Paquete {eng.paquete}: {ok} archivos intactos, {bad} con diferencias")
+        sys.exit(1 if bad else 0)
     if a.cmd == "run":
         if a.reset:
             eng.reset()
