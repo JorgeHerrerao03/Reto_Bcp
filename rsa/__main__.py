@@ -66,7 +66,6 @@ def main(argv=None):
 
     if a.cmd == "verificar":
         import hashlib
-        from .engine import AGENT_DIR
         man = AGENT_DIR / "MANIFIESTO_SHA256.txt"
         ok = bad = 0
         for line in man.read_text(encoding="utf-8").splitlines():

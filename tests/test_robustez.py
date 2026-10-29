@@ -146,3 +146,23 @@ class Cifras(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CLI(unittest.TestCase):
+    """Cada comando de la línea de comandos corre de punta a punta (evita errores como UnboundLocalError)."""
+    def test_comandos(self):
+        import contextlib
+        import io
+        from rsa.__main__ import main
+        out = tempfile.mkdtemp()
+        os.environ["RSA_MODO"] = "reglas"
+        try:
+            for args in (["run", "--reset"], ["senales"], ["investigar", "S1"], ["demo", "--caso", "todos"],
+                         ["deshacer"], ["preguntar", "piloto productivo"], ["reporte"]):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    main(["--out", out, "--solo-reglas"] + args)
+            with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as e:
+                main(["--out", out, "verificar"])
+            self.assertEqual(e.exception.code, 0)
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
