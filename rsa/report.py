@@ -16,13 +16,15 @@ def _slim(state):
     for v in state["versiones"]:
         by = {f["id"]: SimpleNamespace(**f) for f in v["fuentes"]}
         sig = []
-        fx = {f["id"]: {"area": f["area"], "titulo": f["titulo"]} for f in v["fuentes"]}
+        fx = {f["id"]: {"area": f["area"], "titulo": f["titulo"], "origen": f.get("origen")} for f in v["fuentes"]}
         for s in v["signals"]:
             s = dict(s)
             s["recomendacion"] = recomendacion(s)
             if not s.get("brief"):  # versiones antiguas: brief de plantilla para no mostrar vacío
                 from .strategy import fallback
                 s["brief"] = fallback(s, fx)
+            from .strategy import apply_cambios
+            s["brief"] = apply_cambios(dict(s["brief"]), s, fx)  # recalculado: sirve también a versiones guardadas
             s["brief_md"] = render(s, by)
             sig.append(s)
         d = {k: v[k] for k in ("v", "ts", "evento", "fuentes", "descartadas", "log", "diff")}
@@ -259,7 +261,6 @@ function render(){
   $("#main").innerHTML=h+"</div></div>";
   document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
   if(tab==="analisis"){bindWeights(v);document.querySelectorAll("[data-s2]").forEach(b=>b.onclick=()=>{sel=b.dataset.s2;tab="resumen";render()})}
-  const dl=$("#dl-md");if(dl)dl.onclick=()=>{const b=new Blob([s.brief_md],{type:"text/markdown"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`${s.id}_brief.md`;a.click()};
   bindCites();
 }
 $("#vsel").onchange=e=>{vi=+e.target.value;render()};$("#vprev").onclick=()=>{if(vi>0){vi--;render()}};$("#vnext").onclick=()=>{if(vi<V.length-1){vi++;render()}};
@@ -272,7 +273,7 @@ function openSrc(id){const v=V[vi],[fid]=id.split("."),f=v.fuentes.find(x=>x.id=
 function brief(s,d){
   const ch=d&&d.cambios[s.id]; const tr={}; (ch?.transiciones||[]).forEach(t=>tr[t.sid]=t); const nw=new Set((ch?.claims_nuevos||[]).map(c=>c.sid)); const C=s.componentes;
   let h=`<div class="top"><div style="flex:1;min-width:260px"><div class="sub">${s.id} · ${s.areas.join(" · ")}</div><h2>${esc(s.titulo)}</h2><span class="pill">${esc(s.recomendacion)}</span></div>
-  <div><div class="big">${s.score}</div><div class="sub" style="text-align:right">de 100 · madurez ${s.confianza}</div><div style="text-align:right;margin-top:8px">${APP?`<a class="btn sm pri" style="text-decoration:none" href="/api/brief/${s.id}.docx?v=${V[vi].v}">⬇ Brief en Word</a> `:""}<button class="btn sm" id="dl-md">⬇ .md</button></div></div></div>
+  <div><div class="big">${s.score}</div><div class="sub" style="text-align:right">de 100 · madurez ${s.confianza}</div><div style="text-align:right;margin-top:8px">${APP?`<a class="btn sm pri" style="text-decoration:none" href="/api/brief/${s.id}.docx?v=${V[vi].v}">⬇ Brief en Word</a>`:""}</div></div></div>
   <div class="tiles">${[["impacto","Impacto"],["evidencia","Evidencia"],["urgencia","Urgencia"]].map(([k,n])=>`<div class="tile"><span>${n} · peso ${Math.round(s.pesos[k]*100)}%</span><b>${C[k]}</b><div class="tb"><i style="width:${C[k]*100}%"></i></div></div>`).join("")}</div>
   ${C.penalizacion?`<div class="sub" style="margin:-6px 0 8px">Penalización por evidencia refutada: <b style="color:var(--ref)">−${C.penalizacion}</b></div>`:""}`;
   const B=s.brief;if(B){h+=`<div class="callout" style="background:color-mix(in srgb,var(--orange) 8%,var(--panel));border:1px solid color-mix(in srgb,var(--orange) 30%,var(--line))">
@@ -282,6 +283,7 @@ function brief(s,d){
     <div class="tiles" style="grid-template-columns:1fr 1fr;margin:12px 0 6px"><div class="tile"><span>Por qué importa</span><div style="font-size:14px">${esc(B.por_que_importa)}</div></div>
     <div class="tile"><span>Objetivo</span><div style="font-size:14px">${esc(B.objetivo)}</div></div></div>
     ${B.cambio?.length?`<div style="font-weight:800;margin-top:8px;color:var(--orange2)">Lo que cambió con la nueva evidencia</div><ul>${B.cambio.map(x=>`<li>${esc(x.texto)} ${cites("["+x.cita+"]")}</li>`).join("")}</ul>`:""}
+    ${B.aclaraciones?.length?`<div style="font-weight:800;margin-top:8px">Aclaraciones entre las fuentes del paquete</div><ul>${B.aclaraciones.map(x=>`<li>${esc(x.texto)} ${cites("["+x.cita+"]")}</li>`).join("")}</ul>`:""}
     <div class="tiles" style="grid-template-columns:1fr 1fr 1fr;margin:10px 0 4px">${[["sabemos","Lo que sabemos"],["creemos","Lo que creemos"],["confirmar","Falta para decidir"]].map(([k,n])=>`<div class="tile"><span>${n}</span><div style="font-size:13px">${(B[k]||[]).slice(0,3).map(x=>`<div style="margin:3px 0">${esc(x.texto)} ${cites("["+x.cita+"]")}</div>`).join("")||"<span class='sub'>—</span>"}</div></div>`).join("")}</div>
     ${B.plan?.length?`<div style="font-weight:800;margin-top:8px">Plan de acción</div><ol class="steps" style="padding-left:20px">${B.plan.map(x=>`<li>${esc(x.paso)} <span class="sub">· responsable propuesto: ${esc(x.responsable)}</span> ${cites("["+x.cita+"]")}</li>`).join("")}</ol>`:""}
     ${B.decision?.length?`<div style="font-weight:800;margin-top:8px">Criterios de decisión</div>${B.decision.map(x=>`<div class="hit"><b>Si</b> ${esc(x.si)} → <b>entonces</b> ${esc(x.entonces)}</div>`).join("")}`:""}

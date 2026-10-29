@@ -151,7 +151,7 @@ class Engine:
             with ThreadPoolExecutor(4) as ex:
                 for s, r in zip(res["signals"], ex.map(ai.summary, res["signals"])):
                     s["resumen_llm"] = r
-            fx = {s.id: {"area": s.area, "titulo": s.titulo} for s in srcs}
+            fx = {s.id: {"area": s.area, "titulo": s.titulo, "origen": s.origen} for s in srcs}
             with ThreadPoolExecutor(4) as ex:
                 for s, b in zip(res["signals"], ex.map(lambda x: strategy.build(x, fx, ai), res["signals"])):
                     s["brief"] = b
@@ -166,7 +166,7 @@ class Engine:
             res["log"].extend(ai.events)
             ai.events = []
             res["motor"]["modo"] = "reglas"
-        fx = {s.id: {"area": s.area, "titulo": s.titulo} for s in srcs}
+        fx = {s.id: {"area": s.area, "titulo": s.titulo, "origen": s.origen} for s in srcs}
         for s in res["signals"]:
             s.setdefault("brief", strategy.fallback(s, fx))
         self._assign_ids(res["signals"])
@@ -278,7 +278,10 @@ class Engine:
                 f.unlink()
             except OSError:
                 pass
+        fx = {f["id"]: {"area": f["area"], "titulo": f["titulo"], "origen": f.get("origen")} for f in ver["fuentes"]}
         for s in ver["signals"]:
+            if s.get("brief"):
+                s["brief"] = strategy.apply_cambios(s["brief"], s, fx)
             md = brief.render(s, by_id)
             if s.get("resumen_llm"):
                 md = md.replace("## Tesis", f"## Síntesis de la evidencia (Claude, citas validadas)\n{s['resumen_llm']}\n\n## Tesis", 1)
@@ -297,7 +300,7 @@ class Engine:
         missing = [s for s in ver["signals"] if not s.get("brief")]
         if not missing:
             return 0
-        fx = {f["id"]: {"area": f["area"], "titulo": f["titulo"]} for f in ver["fuentes"]}
+        fx = {f["id"]: {"area": f["area"], "titulo": f["titulo"], "origen": f.get("origen")} for f in ver["fuentes"]}
         ai = self.brain() if (ver.get("motor") or {}).get("modo") == "claude" else None
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=4) as ex:
@@ -315,6 +318,8 @@ class Engine:
         self.ensure_briefs(ver)
         s = next(x for x in ver["signals"] if x["id"] == sid)
         s = {**s, "recomendacion": brief.recomendacion(s)}
+        fx = {f["id"]: {"area": f["area"], "titulo": f["titulo"], "origen": f.get("origen")} for f in ver["fuentes"]}
+        s["brief"] = strategy.apply_cambios(dict(s.get("brief") or {}), s, fx)
         logo_f = AGENT_DIR / "marca" / "logo.png"
         return docx.build(s, {f["id"]: f for f in ver["fuentes"]}, ver, logo_f.read_bytes() if logo_f.exists() else None)
 

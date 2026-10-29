@@ -114,6 +114,9 @@ def build(sig, fuentes: dict, ver: dict, logo: bytes | None = None) -> bytes:
         if B.get("cambio"):
             body.append(_h("Lo que cambió con la nueva evidencia", color=ORANGE, size=24, before=200))
             body += [_bullet(x["texto"], x["cita"]) for x in B["cambio"]]
+        if B.get("aclaraciones"):
+            body.append(_h("Aclaraciones entre las fuentes del paquete", size=24, before=200))
+            body += [_bullet(x["texto"], x["cita"]) for x in B["aclaraciones"]]
         for key, title in (("sabemos", "Lo que sabemos"), ("creemos", "Lo que creemos (por validar)"),
                            ("confirmar", "Lo que necesitamos confirmar")):
             if B.get(key):

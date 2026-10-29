@@ -87,21 +87,31 @@ CITA_OK = {"sabemos": {"hecho", "correccion"}, "creemos": {"hipotesis", "adverte
            "confirmar": {"faltante", "hipotesis", "advertencia"}, "plan": {"faltante", "hipotesis", "advertencia", "hecho", "correccion"}}
 
 
-def _cambio(sig, area):
-    """Lo que dejó de ser válido o quedó resuelto por evidencia posterior, agrupado por la fuente que lo cambió
-    (calculado por código, con atribución: es lo que declara esa fuente, no una verificación independiente)."""
+def _cambio(sig, area, nueva=lambda sid: False):
+    """Afirmaciones que una fuente posterior dejó sin efecto o resolvió, agrupadas por esa fuente (calculado por
+    código, con atribución: es lo que declara la fuente, no una verificación independiente).
+    Devuelve (por fuentes incorporadas después de la ingesta inicial, por contradicciones dentro del paquete)."""
     by = {c["sid"]: c for c in sig["claims"]}
     grupos = {}
     for c in sig["claims"]:
         if c.get("superada") and not _is_row(c):
             grupos.setdefault(c["por"], {"refutada": [], "resuelta": []})[c["superada"]].append(c["sid"])
-    out = []
+    nuevas, base = [], []
     for por, g in grupos.items():
         partes = ([f"deja sin efecto {', '.join(g['refutada'])}"] if g["refutada"] else []) + \
                  ([f"resuelve {', '.join(g['resuelta'])}"] if g["resuelta"] else [])
-        out.append({"texto": f"{area(por)} declara «{_short(by.get(por, {}).get('texto', ''), 150)}»: "
-                             + " y ".join(partes) + ".", "cita": por})
-    return out[:4]
+        item = {"texto": f"{area(por)} declara «{_short(by.get(por, {}).get('texto', ''), 150)}»: "
+                         + " y ".join(partes) + ".", "cita": por}
+        (nuevas if nueva(por) else base).append(item)
+    return nuevas[:4], base[:4]
+
+
+def apply_cambios(b, sig, fuentes):
+    """Recalcula en el brief 'cambio' (solo fuentes incorporadas) y 'aclaraciones' (dentro del paquete original)."""
+    area = lambda sid: fuentes.get(sid.split(".")[0], {}).get("area", "Por definir")
+    nueva = lambda sid: fuentes.get(sid.split(".")[0], {}).get("origen") == "incorporada"
+    b["cambio"], b["aclaraciones"] = _cambio(sig, area, nueva)
+    return b
 
 
 def fallback(sig, fuentes) -> dict:
@@ -112,14 +122,14 @@ def fallback(sig, fuentes) -> dict:
     if not plan:
         plan = [{"paso": _short(c["texto"], 160), "responsable": area(c["sid"]), "cita": c["sid"]}
                 for c in _pick(sig, "faltante", 3)]
-    return {
+    return apply_cambios({
         "origen": "plantilla",
         "titular": T.get("titular") or sig["titulo"],
         "oportunidad": T["oportunidad"],
         "por_que_importa": T["importa"],
         "objetivo": T["objetivo"],
         "alcance": {"incluye": T["incluye"], "excluye": T["excluye"]},
-        "cambio": _cambio(sig, area),
+        "cambio": [], "aclaraciones": [],
         # atribuido al área que lo reporta: una observación interna no equivale a una verificación independiente
         "sabemos": [{"texto": (f"{area(c['sid'])} reporta: " if not c["texto"].startswith("Cálculo") else "")
                               + _short(c["texto"]), "cita": c["sid"]} for c in _pick(sig, "hecho", 4)],
@@ -128,7 +138,7 @@ def fallback(sig, fuentes) -> dict:
         "plan": plan,
         "decision": [{"si": a, "entonces": b} for a, b in T["decision"]],
         "riesgos": sig["no_afirmo"][:4],
-    }
+    }, sig, fuentes)
 
 
 SCHEMA = ('{"titular":"frase de negocio, máx. 12 palabras","oportunidad":"1-2 oraciones",'
@@ -184,7 +194,6 @@ def normalize(d, sig, fuentes):
          "objetivo": str(d.get("objetivo") or base["objetivo"])[:300],
          "alcance": {k: [str(x)[:160] for x in ((d.get("alcance") or {}).get(k) or [])][:4] or base["alcance"][k]
                      for k in ("incluye", "excluye")},
-         "cambio": base["cambio"],
          "sabemos": items("sabemos", ["texto"]), "creemos": items("creemos", ["texto"]),
          "confirmar": items("confirmar", ["texto"]), "plan": items("plan", ["paso", "responsable"]),
          "decision": [{"si": str(x.get("si"))[:200], "entonces": str(x.get("entonces"))[:200]}
@@ -204,7 +213,7 @@ def build(sig, fuentes, ai=None):
             d = ai.strategic(sig, prompt(sig, fuentes))
             b = normalize(d, sig, fuentes)
             if b:
-                return b
+                return apply_cambios(b, sig, fuentes)
         except Exception:
             pass
     return fallback(sig, fuentes)
