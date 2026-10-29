@@ -162,6 +162,7 @@ def serve(eng: Engine, port=8765, open_browser=True):
         print("  Motor:", (v.get("motor") or {}).get("modo"), "·", (v.get("motor") or {}).get("aviso", "ok"))
     else:  # regenerar siempre la UI con el código actual (evita servir un reporte viejo)
         from . import report
+        print("  Revenue Signals Agent · preparando briefs y reporte (con Claude puede tardar 10-30 s)…", flush=True)
         n = eng.ensure_briefs()
         if n:
             print(f"  Briefs estratégicos completados para {n} señales de la versión guardada")

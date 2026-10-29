@@ -268,8 +268,10 @@ class Engine:
             return 0
         fx = {f["id"]: {"area": f["area"], "titulo": f["titulo"]} for f in ver["fuentes"]}
         ai = self.brain() if (ver.get("motor") or {}).get("modo") == "claude" else None
-        for s in missing:
-            s["brief"] = strategy.build(s, fx, ai)
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            for s, b in zip(missing, ex.map(lambda x: strategy.build(x, fx, ai), missing)):
+                s["brief"] = b
         if ai:
             ai.save()
         if save:
