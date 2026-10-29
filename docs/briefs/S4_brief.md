@@ -1,4 +1,56 @@
-# Opportunity Brief · S4 · Cambio de calendario / día de pago
+# Día de pago flexible: validar demanda e impacto antes de pilotear
+
+**Opportunity Brief · S4** · Cambio de calendario / día de pago · Prioridad **43.0/100** · Madurez media · Áreas: Canales, Créditos, Experiencia Cliente, Producto Crédito, Riesgos y Producto  
+**Recomendación:** Monitorear: evidencia clave refutada; mantener como propuesta
+
+## La oportunidad
+Evaluar si permitir elegir el día de pago mejora la experiencia del cliente sin deteriorar el devengo ni la mora.
+
+## Por qué importa
+Puede reducir reclamos y mejorar la puntualidad de pago, pero altera los flujos, el devengo y las reglas de corte.
+
+## Objetivo
+Validar la preferencia del cliente y simular el impacto financiero antes de pasar de la maqueta a un piloto.
+
+## Alcance
+**Incluye:** Segmentación de reclamos y preferencias; Simulación financiera (devengo, flujos, mora); Diseño de un piloto  
+**No incluye:** Despliegue productivo sin simulación ni aprobación
+
+## Lo que sabemos
+- El equipo de experiencia registra comentarios sobre fechas de pago poco convenientes en algunos créditos. [F10.1]
+- Un cambio en el día de pago puede modificar días de devengo, flujos y reglas de corte. [F09.2]
+- El calendario de pagos actual se genera automáticamente. [F09.1]
+- Actualmente la fecha se asigna según la fecha de desembolso. [F08.2]
+
+## Lo que creemos (por validar)
+- Producto está evaluando permitir al cliente seleccionar entre tres fechas de pago en Banca Web. [F08.1]
+
+## Lo que necesitamos confirmar
+- La minuta no distingue ambos entornos. [F11.4]
+- La muestra es pequeña y no representa a toda la cartera. [F10.2]
+- La propuesta aún no incluye una simulación financiera ni un análisis de impacto en cliente. [F09.3]
+- Se desconoce el efecto sobre comportamiento de pago y costo operativo. [F08.3]
+
+## Plan de acción
+| # | Acción | Responsable | Evidencia |
+|---|---|---|---|
+| 1 | Se sugiere segmentar por perfil y validar preferencia antes de inferir un impacto en satisfacción. | Experiencia Cliente | F10.3 |
+| 2 | Se solicita corregir la interpretación del acta anterior y mantener el estado como propuesta en evaluación. | Canales | F12.2 |
+
+## Criterios de decisión
+| Si… | Entonces… |
+|---|---|
+| La simulación muestra impacto neutro o positivo y hay demanda | Aprobar un piloto acotado con métricas de mora y satisfacción |
+| El impacto financiero es negativo o la demanda baja | Mantener el calendario actual |
+
+## Riesgos y lo que no afirmamos
+- No asumo que exista piloto productivo: el estado debe confirmarse con evidencia de despliegue.
+- No extrapolo a toda la cartera: muestra no representativa.
+- No afirmo estado productivo: la evidencia no distingue producción de certificación/demo.
+
+---
+
+# Anexo · Evidencia y trazabilidad · S4 · Cambio de calendario / día de pago
 
 **Score:** 43.0 / 100 · impacto 0.45 · evidencia 0.79 · urgencia 0.2  
 **Madurez de evidencia:** media · **Áreas:** Canales, Créditos, Experiencia Cliente, Producto Crédito, Riesgos y Producto  
