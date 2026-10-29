@@ -45,11 +45,19 @@ def make_handler(eng: Engine):
                 from urllib.parse import urlparse, parse_qs
                 u = urlparse(self.path)
                 sid = u.path.rsplit("/", 1)[-1].replace(".docx", "")
-                vi = int((parse_qs(u.query).get("v") or [len(eng.state["versiones"])])[0]) - 1
+                vs = eng.state["versiones"]
+                q = (parse_qs(u.query).get("v") or [""])[0]
+                ver = next((x for x in vs if str(x["v"]) == q), None) or (vs[-1] if vs else None)  # pestaña vieja → última
+                if not ver or not any(x["id"] == sid for x in ver["signals"]):
+                    return self._send(404, {"error": f"La señal {sid} no existe en la versión {q or 'actual'}. "
+                                                      "Recarga la página (Ctrl+F5) e inténtalo de nuevo."})
+                vi = vs.index(ver)
                 try:
-                    data = eng.docx(sid, eng.state["versiones"][vi])
-                except (StopIteration, IndexError):
-                    return self._send(404, {"error": "señal o versión no existe"})
+                    with LOCK:
+                        data = eng.docx(sid, ver)
+                except Exception as e:
+                    traceback.print_exc()
+                    return self._send(500, {"error": f"No se pudo generar el Word: {type(e).__name__}: {e}"})
                 self.send_response(200)
                 self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
                 self.send_header("Content-Disposition", f'attachment; filename="{sid}_brief_v{vi + 1}.docx"')
