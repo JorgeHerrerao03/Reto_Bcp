@@ -111,6 +111,9 @@ def build(sig, fuentes: dict, ver: dict, logo: bytes | None = None) -> bytes:
         body.append(_p(after=60))
         body.append(_table([["Alcance: incluye", "No incluye"], [B["alcance"]["incluye"], B["alcance"]["excluye"]]],
                            [4819, 4819], fill="F7F8FB"))
+        if B.get("cambio"):
+            body.append(_h("Lo que cambió con la nueva evidencia", color=ORANGE, size=24, before=200))
+            body += [_bullet(x["texto"], x["cita"]) for x in B["cambio"]]
         for key, title in (("sabemos", "Lo que sabemos"), ("creemos", "Lo que creemos (por validar)"),
                            ("confirmar", "Lo que necesitamos confirmar")):
             if B.get(key):
@@ -118,7 +121,7 @@ def build(sig, fuentes: dict, ver: dict, logo: bytes | None = None) -> bytes:
                 body += [_bullet(x["texto"], x["cita"]) for x in B[key]]
         if B.get("plan"):
             body.append(_h("Plan de acción", size=24, before=200))
-            body.append(_table([["#", "Acción", "Responsable", "Evidencia"]] +
+            body.append(_table([["#", "Acción", "Responsable propuesto", "Evidencia"]] +
                                [[str(i), x["paso"], x["responsable"], x["cita"]] for i, x in enumerate(B["plan"], 1)],
                                [400, 5838, 2200, 1200]))
         if B.get("decision"):
@@ -165,7 +168,10 @@ def build(sig, fuentes: dict, ver: dict, logo: bytes | None = None) -> bytes:
         body.append(_h("Auditoría Claude vs. reglas", size=22, before=160))
         body.append(_p(_run(f"Claude clasificó {A['por_claude']} de {A['oraciones']} oraciones; las reglas coinciden en "
                             f"{A['coinciden']}. Discrepancias: {len(A['discrepancias'])}. Relaciones en disputa: "
-                            f"{len(A.get('relaciones_en_disputa') or [])}.", size=20)))
+                            f"{len(A.get('relaciones_en_disputa') or [])}. Relaciones decididas por: "
+                            f"{A.get('relaciones_motor', 'claude')}.", size=20)))
+        for d_ in A["discrepancias"][:8]:
+            body.append(_bullet(f"Claude: {d_['claude']} · reglas: {d_['reglas']} — {d_['razon']}", d_["sid"]))
         sids = {c["sid"] for c in sig["claims"]}
         for cm in [c for c in (ver.get("comites") or []) if any(s in c["objeto"] for s in sids)]:
             body.append(_bullet(f"Comité · {cm['objeto']}: juez {'SÍ' if cm['veredicto'] else 'NO'} — {cm['motivo']}"))

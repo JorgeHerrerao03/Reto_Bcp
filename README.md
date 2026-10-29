@@ -23,7 +23,7 @@ Python ≥ 3.9 · **cero dependencias** · **Claude decide y las reglas auditan*
 | Herramienta local: decidir, invocar y registrar | `tools.py` la invoca solo si infiere producto + canal + parámetro (S1: Web y contraste Sucursal); registra también las omisiones con su motivo. La herramienta no se modifica |
 | Traza observable | Pestaña Traza y `Sx_traza.md`: fuentes consultadas, consultas, resultados y aspectos no resueltos. Es un log de acciones, no razonamiento interno |
 | Actualizar hallazgos ante evidencia nueva | Versiones v1…vN, "Qué cambió y por qué", hipótesis refutadas y faltantes resueltos (`demo/`, `demo/dificiles/`, `demo/adjuntos/`) |
-| Modelos, dependencias, costos, determinístico vs. agentic | §3 y §7. Cero dependencias; Claude Haiku 5.5 opcional, menos de USD 0.01 por corrida |
+| Modelos, dependencias, costos, determinístico vs. agentic | §3 y §7. Cero dependencias; Claude Haiku 5.5 opcional; costo observado del orden de centavos de dólar por corrida (se mide y se muestra en cada versión) |
 | No enviar información real a servicios externos | Solo se envían las fuentes sintéticas del reto; `--solo-reglas` no hace ninguna llamada externa |
 
 ---
@@ -75,13 +75,17 @@ Con API key configurada, **Claude decide siempre**: entiende español informal, 
 - JSON con formato fijo; la reproducibilidad se asegura con la caché por contenido.
 - Se descartan los IDs que no existan.
 - Las relaciones solo pueden ir de una fuente posterior a una anterior.
-- Se rechaza cualquier cifra inventada.
+- Cifras: cada número del texto generado debe existir con el **mismo valor** (y `%` si lo lleva) en la evidencia; en las listas del brief, en la **oración citada**. Se toleran conteos pequeños sin unidad ("3 fuentes"). Esto bloquea cifras inventadas, pero no certifica por sí solo que una cita respalde semánticamente la frase.
+- El brief solo cita evidencia **vigente** y compatible: "Lo que sabemos" solo hechos o correcciones (atribuidos al área que los reporta); lo refutado o resuelto va a "Lo que cambió".
+- **Las reglas auditan con su propia clasificación.** Si Claude no ve una corrección explícita (p.ej. F12 maqueta → F11 piloto) o la etapa de relaciones falla, la corrección de reglas se conserva y queda marcada.
+- Cada llamada registra uso y `stop_reason` antes de interpretar la respuesta; si el JSON llega vacío o truncado hay un reintento acotado. Los fallos se cuentan por etapa y se muestran como aviso ("esos pasos usaron reglas o plantilla").
+- Haiku 5.5 razona por defecto y ese razonamiento consume `max_tokens`; para estas tareas de extracción se envía `thinking: disabled` y `effort: low` (`RSA_THINKING=adaptive` lo reactiva).
 - Caché por contenido en `.cache/`: repetir un análisis no vuelve a llamar a la API.
 
 **Configurar.** En la app: ⋯ → Conectar Claude, o `python -m rsa config --key sk-ant-...`. Necesitas una API key de console.anthropic.com; una suscripción Pro/Max no incluye API. Para forzar el modo reglas: `python -m rsa --solo-reglas app` o `RSA_MODO=reglas`.
 
 **Costo.** Con Haiku 5.5 (USD 0.10 / 0.50 por MTok):
-- El primer análisis de las 18 fuentes cuesta unas 25 llamadas, menos de USD 0.01, y tarda 20–40 s.
+- El primer análisis de las 18 fuentes hace unas 25–35 llamadas; el costo observado ha sido del orden de USD 0.01 y tarda 20–40 s. Es una estimación, no una garantía: el costo real de cada versión se muestra en la app.
 - Cada fuente nueva cuesta 2 a 6 llamadas, unos 3–15 s.
 - Lo que ya está en caché cuesta USD 0.
 
@@ -136,7 +140,7 @@ python -m rsa preguntar "¿hay piloto productivo?"  [--llm antes del comando]
 python -m rsa consultar "Credito Flexible" Web rate_input
 python -m rsa sync fuentes_nuevas         # lo que corre la Action
 python -m rsa demo --caso todos
-python -m unittest discover -s tests -t . -v      # 25 tests (núcleo en modo reglas + modo Claude con stub)
+python -m unittest discover -s tests -t . -v      # 34 tests (reglas, Claude con stub, fallos parciales de la API, deshacer, IDs, sync y cifras)
 ```
 
 ## 6. Decisiones técnicas
@@ -192,4 +196,7 @@ ingesta (CSV + md, sha1) → relevancia (léxico económico / declaración de no
 - Claude no es 100 % reproducible: se mitiga con caché por contenido y auditoría de las reglas. Las discrepancias quedan visibles.
 - Sin API, el respaldo vuelve a las heurísticas léxicas, que se amplían en `lexicon.py`.
 - Un documento que mezcla dos palancas se asigna a la dominante.
+- En modo solo reglas, un documento con vocabulario económico poco usual puede quedar bajo el umbral: se marca como **"Revisión pendiente"** en lugar de descartarse en silencio. No es un descubridor general de oportunidades.
+- Una aclaración de una fuente interna se registra como **declaración de esa fuente**, no como verificación independiente.
+- Al incorporar documentos con Claude conectado, su contenido se envía a la API de Anthropic: usar solo datos ficticios o autorizados.
 - Los pesos de impacto son supuestos de negocio explícitos, no aprendidos.

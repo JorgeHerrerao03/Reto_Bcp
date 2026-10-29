@@ -61,29 +61,42 @@ def status():
 
 
 # ---------- llamada ----------
+_NO_THINK = {"ok": True}  # se desactiva si el modelo rechaza los parámetros de razonamiento
+
+
 def call(prompt, max_tokens=500, system=None, temperature=None):
+    """Devuelve (texto, meta). meta incluye uso, costo y stop_reason aunque el texto luego no se pueda interpretar.
+    Haiku 5.5 piensa por defecto y ese razonamiento consume max_tokens (respuestas vacías o JSON truncado):
+    para tareas de extracción se desactiva (RSA_THINKING=adaptive lo reactiva) y se fija effort bajo."""
     c = cfg()
     if not c["key"]:
         raise RuntimeError("Sin ANTHROPIC_API_KEY (configúrala en la app o en .env)")
     body = {"model": c["model"], "max_tokens": max_tokens, "messages": [{"role": "user", "content": prompt}]}
     if system:
         body["system"] = system
+    if _NO_THINK["ok"] and os.getenv("RSA_THINKING", "disabled") == "disabled":
+        body["thinking"] = {"type": "disabled"}
+        body["output_config"] = {"effort": os.getenv("RSA_EFFORT", "low")}
     # Modelos recientes no aceptan `temperature`: la reproducibilidad se logra con caché por contenido
     if temperature is not None and os.getenv("RSA_TEMPERATURE"):
         body["temperature"] = float(os.getenv("RSA_TEMPERATURE"))
-    req = urllib.request.Request(os.getenv("RSA_API_URL", "https://api.anthropic.com/v1/messages"), data=json.dumps(body).encode(),
-                                 headers={"x-api-key": c["key"], "anthropic-version": "2023-06-01",
-                                          "content-type": "application/json"})
+    url = os.getenv("RSA_API_URL", "https://api.anthropic.com/v1/messages")
+    hdr = {"x-api-key": c["key"], "anthropic-version": "2023-06-01", "content-type": "application/json"}
     t0 = time.perf_counter()
     try:
-        r = json.loads(urllib.request.urlopen(req, timeout=60).read())
+        r = json.loads(urllib.request.urlopen(urllib.request.Request(url, data=json.dumps(body).encode(), headers=hdr),
+                                              timeout=90).read())
     except urllib.error.HTTPError as e:
-        raise RuntimeError(f"API {e.code}: {e.read().decode(errors='replace')[:300]}") from None
-    txt = "".join(b.get("text", "") for b in r.get("content", []))
+        msg = e.read().decode(errors="replace")[:300]
+        if e.code == 400 and "thinking" in body and re.search(r"thinking|output_config|effort", msg):
+            _NO_THINK["ok"] = False  # modelo sin soporte: reintenta sin esos parámetros
+            return call(prompt, max_tokens, system, temperature)
+        raise RuntimeError(f"API {e.code}: {msg}") from None
+    txt = "".join(b.get("text", "") for b in r.get("content", []) if b.get("type", "text") == "text")
     u = r.get("usage", {})
     cost = (u.get("input_tokens", 0) * c["price_in"] + u.get("output_tokens", 0) * c["price_out"]) / 1e6
     return txt.strip(), {"modelo": c["model"], "tokens": u, "costo_usd": round(cost, 6),
-                         "ms": round((time.perf_counter() - t0) * 1000)}
+                         "stop_reason": r.get("stop_reason"), "ms": round((time.perf_counter() - t0) * 1000)}
 
 
 def test():
@@ -96,14 +109,58 @@ SYS = ("Eres analista de Revenue Optimization en un banco. Usas SOLO la evidenci
        "no inventas ni estimas cifras y no recomiendas eliminar nada sin evidencia. Respondes en español.")
 
 
+_NUMTOK = re.compile(r"(?<![\w.,/-])(\d+(?:[.,]\d+)*)(\s*%)?(?![\w])")
+_IGNORE = re.compile(r"\[?\b[FS]\d+(?:\.\d+)?\b\]?|\b\d{4}-\d{2}-\d{2}\b")
+
+
+def _val(x):
+    x = x.strip()
+    if re.fullmatch(r"\d{1,3}(\.\d{3})+(,\d+)?", x):
+        x = x.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d+,\d+", x):
+        x = x.replace(",", ".")
+    else:
+        x = x.replace(",", "")
+    try:
+        return round(float(x), 6)
+    except ValueError:
+        return None
+
+
+def numbers(t):
+    """Cifras de un texto como (valor, es_porcentaje); ignora IDs de fuente/señal y fechas ISO."""
+    t = _IGNORE.sub(" ", t or "")
+    return [(_val(m.group(1)), bool(m.group(2))) for m in _NUMTOK.finditer(t) if _val(m.group(1)) is not None]
+
+
+def nums_ok(txt, evidence, small=12):
+    """Toda cifra del texto debe existir con el MISMO valor (y '%' si lo lleva) en la evidencia.
+    Se toleran conteos pequeños sin unidad (≤ small), p.ej. '3 fuentes'."""
+    ev = numbers(" ".join(evidence))
+    ev_all, ev_pct = {v for v, _ in ev}, {v for v, p in ev if p}
+    for v, pct in numbers(txt):
+        if pct and v not in ev_pct:
+            return False
+        if not pct and v not in ev_all and not (float(v).is_integer() and v <= small):
+            return False
+    return True
+
+
 def _check(txt, valid, texts=None):
-    """Citas válidas y sin cifras inventadas: una cifra solo se acepta si aparece literalmente en la evidencia
-    (p.ej. un 'Cálculo (código)' de una tabla)."""
+    """Citas válidas y sin cifras inventadas: cada cifra debe aparecer con el mismo valor en la evidencia
+    (p.ej. un 'Cálculo (código)' de una tabla). Si se pasan textos por sid, la cifra se contrasta contra las
+    oraciones citadas en la misma frase."""
     cited = set(re.findall(r"\[(F\d+\.\d+)\]", txt))
     bad = sorted(cited - set(valid))
-    blob = " ".join(texts or [])
-    nums_ok = all(re.match(r"\d[\d.,]*", m.group(0)).group(0).rstrip(".,") in blob for m in NUM.finditer(txt))
-    return cited, bad, bool(cited) and not bad and nums_ok
+    if isinstance(texts, dict):
+        ok_n = True
+        for frase in re.split(r"(?<=[.;])\s+", txt):
+            cs = re.findall(r"\[(F\d+\.\d+)\]", frase)
+            ev = [texts[c] for c in cs if c in texts] or list(texts.values())
+            ok_n = ok_n and nums_ok(frase, ev)
+    else:
+        ok_n = nums_ok(txt, texts or [])
+    return cited, bad, bool(cited) and not bad and ok_n
 
 
 def _claims(sig):
@@ -120,7 +177,7 @@ def summarize(sig, log):
     except Exception as e:
         log.append({"accion": "llm_omitido", "senal": sig["titulo"], "motivo": str(e)[:200]})
         return None
-    cited, bad, ok = _check(txt, [c["sid"] for c in sig["claims"]])
+    cited, bad, ok = _check(txt, [c["sid"] for c in sig["claims"]], {c["sid"]: c["texto"] for c in sig["claims"]})
     log.append({"accion": "llm_resumen", "senal": sig["titulo"], **meta, "citas": sorted(cited),
                 "citas_invalidas": bad, "aceptado": ok})
     return txt if ok else None
@@ -133,7 +190,7 @@ def answer(question, hits):
               "Responde en máximo 120 palabras. Si la evidencia no alcanza, dilo y nombra qué falta. "
               "Si hay fuentes que se contradicen, prioriza la más reciente y menciónalo.")
     txt, meta = call(prompt, 500, SYS)
-    cited, bad, ok = _check(txt, [h["sid"] for h in hits])
+    cited, bad, ok = _check(txt, [h["sid"] for h in hits], {h["sid"]: h["texto"] for h in hits})
     return {"respuesta": txt, "aceptada": ok, "citas_invalidas": bad, **meta}
 
 

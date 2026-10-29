@@ -1,16 +1,15 @@
 # Guion de la demo (5 min) · app local
 
-Antes de empezar: doble clic en `Iniciar_RevenueSignals.bat` y luego **Reiniciar**.
+Antes de empezar: doble clic en `Iniciar_RevenueSignals.bat`. Mira la barra superior: dice **"Motor: Claude decide, reglas auditan"** o **"Motor: solo reglas"**, y si alguna etapa de Claude falló lo indica con ⚠. Las cifras (88.8 → 77.7) son las del modo reglas; con Claude pueden variar algo, así que cita las que veas en pantalla.
 
-| Tiempo | Acción en la app | Mensaje |
+| Tiempo | Acción en la app | Qué debe quedar probado |
 |---|---|---|
-| 0:00–0:30 | Pantalla inicial | 18 fuentes → 4 señales y 4 descartadas como ruido. Determinístico, reproducible y sin internet |
-| 0:30–1:30 | S1 → Opportunity Brief | Hechos, hipótesis y faltantes con cita por oración. **Lo que NO afirmo**: no cuantifico la fuga, no afirmo estado productivo |
-| 1:30–2:00 | Brief → herramienta · pestaña Traza | Consulté Web y luego Sucursal porque F03 pide contrastar canales. En S3/S4 la consulta se omite y queda el motivo |
-| 2:00–2:30 | S4 → Grafo | F12 refuta F11: arista roja y penalización en el score |
-| 2:30–3:45 | **＋ Añadir fuente** → arrastrar `demo/F19_contradice.md` → **Previsualizar** → **Incorporar** | Antes de guardar se ve el impacto. Después, S1 baja 88.8 → 77.7: F01.2 queda refutada y F01.3/F01.4 resueltas. Comparar v1 ↔ v2 en la máquina del tiempo |
-| 3:45–4:20 | Matriz · ¿Y si cambio los pesos? | Los pesos son supuestos de negocio explícitos y se pueden discutir en vivo |
-| 4:20–5:00 | Preguntar a las fuentes (con Claude) · link de GitHub Pages | Claude solo responde con evidencia citada. El reporte público se regenera solo al subir una fuente al repo |
+| 0:00–0:30 | Pantalla inicial | 18 fuentes → 4 señales y 4 descartadas como ruido, y bajo qué supuestos se prioriza |
+| 0:30–1:30 | S1 → Resumen (tarjeta Brief estratégico) | Lo que sabemos (observación de Operaciones, atribuida), lo que creemos (la causa: tasa mensual cargada como anual) y lo que falta. **Lo que NO afirmo**: no cuantifico la fuga |
+| 1:30–2:10 | Consulta a la herramienta · pestaña Traza | Por qué se consultó Web y luego Sucursal, con qué parámetros y por qué el resultado no cierra el caso. En S2/S3/S4 la consulta se omite y queda el motivo |
+| 2:10–3:30 | **＋ Añadir fuente** → `demo/F19_contradice.md` → **Previsualizar** → **Incorporar** | Cambia la conclusión: la tarjeta muestra **"Lo que cambió con la nueva evidencia"** (Tecnología declara… deja sin efecto F01.2 y resuelve F01.3/F01.4) y la cautela pasa a "Actualizado por F19". Sigue pendiente la muestra transaccional |
+| 3:30–4:20 | S4 → Grafo y brief | F12 (maqueta) refuta F11 (piloto). Aunque Claude no lo vea, la corrección explícita de las reglas se conserva y queda marcada. Cada conclusión abre su oración |
+| 4:20–5:00 | Arquitectura y límites | Qué decide el código (score, cálculos, validación de IDs y cifras) y qué interpreta Claude; comportamiento sin red; costo observado en pantalla; siguiente paso |
 
 ## Entrevista: fuentes nuevas
 
@@ -38,5 +37,6 @@ Para ensayarlo: `demo\adjuntos\adjunto_F04_muestra.xlsx` y `demo\adjuntos\captur
 
 - [ ] Abrir la app y confirmar **"Motor: Claude decide, reglas auditan"** (o ensayar en modo reglas si la red bloquea la API).
 - [ ] No reiniciar justo antes: la caché asegura los mismos números que ensayaste.
-- [ ] Tener a mano `demo\adjuntos\adjunto_F04_muestra.xlsx`, `demo\dificiles\F23_correccion_informal.md` y el link de GitHub Pages.
+- [ ] Tener a mano `demo\adjuntos\adjunto_F04_muestra.xlsx` y `demo\dificiles\F23_correccion_informal.md`. GitHub Pages es opcional: no depender de él en la demo.
+- [ ] Si reanalizaste o incorporaste en el ensayo: **Deshacer última** (funciona también tras re-analizar) o ⋯ → Reset.
 - [ ] Hotspot del celular como respaldo de red.

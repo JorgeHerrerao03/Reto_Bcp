@@ -242,7 +242,7 @@ async function act(k){
 function render(){
   const v=V[vi]; if(!sel||!v.signals.find(s=>s.id===sel)) sel=v.signals[0]?.id; sset("rs-sel",sel); sset("rs-tab",tab);
   $("#vsel").innerHTML=V.map((x,i)=>`<option value="${i}" ${i===vi?"selected":""}>v${x.v} · ${esc(x.evento)}</option>`).join("");
-  $("#mode").textContent=(APP?"App local · ":"Solo lectura · ")+(v.motor?.modo==="claude"?"Motor: Claude decide, reglas auditan":"Motor: solo reglas");
+  $("#mode").textContent=(APP?"App local · ":"Solo lectura · ")+(v.motor?.modo==="claude"?"Motor: Claude decide, reglas auditan":"Motor: solo reglas")+(v.motor?.aviso?" · ⚠ "+v.motor.aviso:"");
   $("#vprev").disabled=vi===0;$("#vnext").disabled=vi===V.length-1;
   const nc=v.log.filter(l=>l.accion==="consulta_herramienta").length;
   $("#stats").innerHTML=[[v.fuentes.length,"fuentes"],[v.signals.length,"señales"],[v.descartadas.length,"descartadas"],[nc,"consultas a la herramienta"]].concat(v.motor?.modo==="claude"?[[v.motor.comites||0,"comités"],["USD "+v.motor.costo_usd,"Claude"]]:[]).map(([n,k])=>`<span><b>${n}</b>${k}</span>`).join("");
@@ -281,7 +281,9 @@ function brief(s,d){
     <div>${esc(B.oportunidad)}</div>
     <div class="tiles" style="grid-template-columns:1fr 1fr;margin:12px 0 6px"><div class="tile"><span>Por qué importa</span><div style="font-size:14px">${esc(B.por_que_importa)}</div></div>
     <div class="tile"><span>Objetivo</span><div style="font-size:14px">${esc(B.objetivo)}</div></div></div>
-    ${B.plan?.length?`<div style="font-weight:800;margin-top:8px">Plan de acción</div><ol class="steps" style="padding-left:20px">${B.plan.map(x=>`<li>${esc(x.paso)} <span class="sub">· ${esc(x.responsable)}</span> ${cites("["+x.cita+"]")}</li>`).join("")}</ol>`:""}
+    ${B.cambio?.length?`<div style="font-weight:800;margin-top:8px;color:var(--orange2)">Lo que cambió con la nueva evidencia</div><ul>${B.cambio.map(x=>`<li>${esc(x.texto)} ${cites("["+x.cita+"]")}</li>`).join("")}</ul>`:""}
+    <div class="tiles" style="grid-template-columns:1fr 1fr 1fr;margin:10px 0 4px">${[["sabemos","Lo que sabemos"],["creemos","Lo que creemos"],["confirmar","Falta para decidir"]].map(([k,n])=>`<div class="tile"><span>${n}</span><div style="font-size:13px">${(B[k]||[]).slice(0,3).map(x=>`<div style="margin:3px 0">${esc(x.texto)} ${cites("["+x.cita+"]")}</div>`).join("")||"<span class='sub'>—</span>"}</div></div>`).join("")}</div>
+    ${B.plan?.length?`<div style="font-weight:800;margin-top:8px">Plan de acción</div><ol class="steps" style="padding-left:20px">${B.plan.map(x=>`<li>${esc(x.paso)} <span class="sub">· responsable propuesto: ${esc(x.responsable)}</span> ${cites("["+x.cita+"]")}</li>`).join("")}</ol>`:""}
     ${B.decision?.length?`<div style="font-weight:800;margin-top:8px">Criterios de decisión</div>${B.decision.map(x=>`<div class="hit"><b>Si</b> ${esc(x.si)} → <b>entonces</b> ${esc(x.entonces)}</div>`).join("")}`:""}
     </div>`}
   if(s.resumen_llm)h+=`<div class="callout ai"><h4>Síntesis de la evidencia · Claude (citas validadas)</h4>${cites(esc(s.resumen_llm))}</div>`;
@@ -296,7 +298,7 @@ function brief(s,d){
   if(s.proximos_pasos.length)h+=`<details class="grp" open><summary>Próximos pasos<span class="cnt">${s.proximos_pasos.length}</span></summary><ol class="steps">${s.proximos_pasos.map(p=>`<li>${esc(p.texto)} ${cites("["+p.sid+"]")}</li>`).join("")}</ol></details>`;
   const A=s.auditoria;if(A&&A.motor==="claude"){const rd=A.relaciones_en_disputa||[];const cm=(V[vi].comites||[]).filter(c=>s.claims.some(x=>c.objeto.includes(x.sid)));
     h+=`<details class="grp"><summary>Auditoría: Claude vs. reglas<span class="cnt">${A.coinciden}/${A.por_claude} coinciden</span></summary><div style="padding-left:20px">
-    <div class="sub" style="margin-bottom:6px">Claude clasificó ${A.por_claude} de ${A.oraciones} oraciones; las reglas coinciden en ${A.coinciden}. Las discrepancias se marcan con ⚠ y las relaciones en disputa van al comité.</div>
+    <div class="sub" style="margin-bottom:6px">Claude clasificó ${A.por_claude} de ${A.oraciones} oraciones; las reglas coinciden en ${A.coinciden}. Las discrepancias se marcan con ⚠ y las relaciones en disputa van al comité.${A.relaciones_motor?` Relaciones decididas por: <b>${esc(A.relaciones_motor)}</b>.`:""}</div>
     ${A.discrepancias.map(d=>`<div class="hit">${cites("["+d.sid+"]")} Claude: <b>${ET[d.claude]}</b> · reglas: <b>${ET[d.reglas]}</b> <span class="sub">— ${esc(d.razon)}</span></div>`).join("")}
     ${rd.map(d=>`<div class="hit">Relación ${cites("["+d.de+"]")} ${d.relacion} ${cites("["+d.a+"]")} · propuesta por <b>${d.propone}</b>${d.comite===null?"":` · comité: <b>${d.comite?"se mantiene":"se descarta"}</b>`}</div>`).join("")}</div></details>`;
     if(cm.length)h+=`<details class="grp"><summary>Comité de verificación<span class="cnt">${cm.length}</span></summary><div style="padding-left:20px">${comitesHtml(cm)}</div></details>`}
@@ -380,7 +382,7 @@ async function preview(){$("#prev-res").innerHTML='<div class="res sub">Analizan
   if(p.clasificacion.length)h+=`<h3 class="sect">Cómo se clasificó cada oración</h3>${p.clasificacion.map(c=>`<div class="hit"><span class="tag t-${c.tipo}">${ET[c.tipo]}</span><span class="mono sub">${c.sid}</span> ${esc(c.texto)}${c.razon?`<div class="sub">Claude: ${esc(c.razon)}${c.tipo_reglas&&c.tipo_reglas!==c.tipo?` · <b style="color:var(--hip)">reglas decían: ${ET[c.tipo_reglas]}</b>`:""}</div>`:""}</div>`).join("")}`;
   if(p.auditoria_relevancia?.length)h+=p.auditoria_relevancia.map(a=>`<div class="callout ai"><h4>Claude vs. reglas · relevancia</h4>Claude: <b>${a.claude?"relevante":"ruido"}</b> · reglas: <b>${a.reglas?"relevante":"ruido"}</b>${a.comite!==null?` · comité: <b>${a.comite?"relevante":"ruido"}</b>`:""}</div>`).join("");
   const cm=(p.comites||[]).filter(c=>c.objeto.includes(f.id));if(cm.length)h+=comitesHtml(cm);
-  h+=`<div class="sub" style="margin-top:8px">${p.motor?.modo==="claude"?`Motor Claude · ${p.motor.llamadas} llamadas nuevas · ${p.motor.cache} en caché · USD ${p.motor.costo_usd}`:"Motor: solo reglas"+(p.motor?.aviso?" — "+esc(p.motor.aviso):"")}</div>`;
+  h+=`<div class="sub" style="margin-top:8px">${p.motor?.modo==="claude"?`Motor Claude · ${p.motor.llamadas} llamadas nuevas · ${p.motor.cache} en caché · USD ${p.motor.costo_usd}${p.motor.aviso?" · ⚠ "+esc(p.motor.aviso):""}`:"Motor: solo reglas"+(p.motor?.aviso?" — "+esc(p.motor.aviso):"")}</div>`;
   $("#prev-res").innerHTML=h+"</div>";$("#b-inc").disabled=false}
 async function incorporate(){if(!PREV)return;$("#b-inc").disabled=true;try{const r=await api("/api/incorporar",{markdown:PREV.markdown});sset("rs-msg",r.explicacion);if(r.cambios&&r.cambios[0])sset("rs-sel",r.cambios[0]);sset("rs-tab","resumen");location.reload()}catch(e){toast("⚠ "+e.message,6000);$("#b-inc").disabled=false}}
 // ---------- Claude ----------

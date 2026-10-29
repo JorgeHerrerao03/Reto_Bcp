@@ -38,12 +38,12 @@ def strategic_md(sig) -> str:
          "## Objetivo", B["objetivo"], "",
          "## Alcance", "**Incluye:** " + "; ".join(B["alcance"]["incluye"]) + "  ",
          "**No incluye:** " + "; ".join(B["alcance"]["excluye"]), ""]
-    for k, t in (("sabemos", "Lo que sabemos"), ("creemos", "Lo que creemos (por validar)"),
-                 ("confirmar", "Lo que necesitamos confirmar")):
+    for k, t in (("cambio", "Lo que cambió con la nueva evidencia"), ("sabemos", "Lo que sabemos"),
+                 ("creemos", "Lo que creemos (por validar)"), ("confirmar", "Lo que necesitamos confirmar")):
         if B.get(k):
             L += [f"## {t}"] + [f"- {x['texto']} [{x['cita']}]" for x in B[k]] + [""]
     if B.get("plan"):
-        L += ["## Plan de acción", "| # | Acción | Responsable | Evidencia |", "|---|---|---|---|"] + [
+        L += ["## Plan de acción", "| # | Acción | Responsable propuesto | Evidencia |", "|---|---|---|---|"] + [
             f"| {i} | {x['paso']} | {x['responsable']} | {x['cita']} |" for i, x in enumerate(B["plan"], 1)] + [""]
     if B.get("decision"):
         L += ["## Criterios de decisión", "| Si… | Entonces… |", "|---|---|"] + [

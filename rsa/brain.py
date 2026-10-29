@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -18,7 +19,7 @@ from . import lexicon as L
 from . import llm
 from .text import tokens
 
-PROMPT_VER = "v2"
+PROMPT_VER = "v3"
 TIPOS = {"hecho", "hipotesis", "faltante", "correccion", "advertencia"}
 RELS = {"refuta", "resuelve", "confirma"}
 PALANCAS = [p for p, _ in L.PALANCAS]
@@ -39,7 +40,12 @@ def _h(x) -> str:
 
 
 def _parse(txt):
-    return json.loads(txt[txt.index("{"): txt.rindex("}") + 1])
+    """Primer objeto JSON del texto (tolera ```json …``` y texto alrededor)."""
+    txt = re.sub(r"^```(?:json)?|```$", "", (txt or "").strip(), flags=re.M).strip()
+    i = txt.find("{")
+    if i < 0:
+        raise ValueError("respuesta sin JSON" + (f": {txt[:80]!r}" if txt else " (vacía)"))
+    return json.JSONDecoder().raw_decode(txt[i:])[0]
 
 
 class Brain:
@@ -51,7 +57,7 @@ class Brain:
         except Exception:
             self.cache = {}
         self.model = llm.cfg()["model"]
-        self.stats = {"llamadas": 0, "cache": 0, "costo_usd": 0.0, "fallos": 0, "comites": 0}
+        self.stats = {"llamadas": 0, "cache": 0, "costo_usd": 0.0, "fallos": 0, "comites": 0, "etapas": {}}
         self.events = []  # registro observable de cada llamada
 
     # ---------- infraestructura ----------
@@ -65,21 +71,41 @@ class Brain:
         with self.lock:
             if ck in self.cache:
                 self.stats["cache"] += 1
+                self.stats["etapas"].setdefault(kind.split("_")[0], {"ok": 0, "fallo": 0})["ok"] += 1
                 self.events.append({"accion": f"claude_{kind}", "objeto": label, "cache": True})
                 return self.cache[ck]
-        try:
-            txt, meta = llm.call(prompt, max_tokens, SYS, temperature=0)
-            data = _parse(txt)
-        except Exception as e:
+        data, err, mt = None, "", max_tokens
+        for intento in (1, 2):  # un reintento acotado: más espacio si se truncó, mismo prompt si el formato falló
+            try:
+                txt, meta = llm.call(prompt, mt, SYS, temperature=0)
+            except Exception as e:
+                err = str(e)
+                break
+            with self.lock:  # el consumo se registra ANTES de interpretar: una respuesta inválida también cuesta
+                self.stats["llamadas"] += 1
+                self.stats["costo_usd"] += meta["costo_usd"]
+            try:
+                data = _parse(txt)
+                if meta.get("stop_reason") == "max_tokens" and not isinstance(data, dict):
+                    raise ValueError("respuesta truncada")
+                break
+            except Exception as e:
+                err = f"{e} · stop_reason={meta.get('stop_reason')}"
+                if meta.get("stop_reason") == "max_tokens":
+                    mt = int(mt * 2)
+        with self.lock:
+            st = self.stats["etapas"].setdefault(kind.split("_")[0], {"ok": 0, "fallo": 0})
+        if data is None:
             with self.lock:
                 self.stats["fallos"] += 1
-                self.events.append({"accion": f"claude_{kind}_fallo", "objeto": label, "error": str(e)[:160]})
+                st["fallo"] += 1
+                self.events.append({"accion": f"claude_{kind}_fallo", "objeto": label, "error": err[:200]})
             return None
         with self.lock:
-            self.stats["llamadas"] += 1
-            self.stats["costo_usd"] += meta["costo_usd"]
+            st["ok"] += 1
             self.events.append({"accion": f"claude_{kind}", "objeto": label, "cache": False, "ms": meta["ms"],
-                                "tokens": meta["tokens"], "costo_usd": meta["costo_usd"]})
+                                "tokens": meta["tokens"], "costo_usd": meta["costo_usd"], "intentos": intento,
+                                "stop_reason": meta.get("stop_reason")})
             self.cache[ck] = data
         return data
 
@@ -210,7 +236,7 @@ class Brain:
         txt = (d or {}).get("resumen", "") if isinstance(d, dict) else ""
         if not txt:
             return None
-        _, bad, ok = llm._check(txt, [c["sid"] for c in sig["claims"]], [c["texto"] for c in sig["claims"]])
+        _, bad, ok = llm._check(txt, [c["sid"] for c in sig["claims"]], {c["sid"]: c["texto"] for c in sig["claims"]})
         return txt if ok else None
 
     # ---------- brief estratégico ----------
@@ -240,4 +266,10 @@ class Brain:
         return str(d.get("titulo") or "").strip(), str(d["texto"]).strip()
 
     def motor(self):
-        return {"modo": "claude", "modelo": self.model, **self.stats, "costo_usd": round(self.stats["costo_usd"], 5)}
+        m = {"modo": "claude", "modelo": self.model, "prompt_ver": PROMPT_VER, **self.stats, "costo_usd": round(self.stats["costo_usd"], 5),
+             "etapas": {k: dict(v) for k, v in self.stats["etapas"].items()}}
+        if self.stats["fallos"]:
+            caidas = ", ".join(f"{k} {v['fallo']}" for k, v in m["etapas"].items() if v["fallo"])
+            m["aviso"] = (f"Claude falló en {self.stats['fallos']} llamada(s) ({caidas}); esos pasos usaron reglas o "
+                          "plantilla y quedan marcados")
+        return m

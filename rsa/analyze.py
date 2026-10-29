@@ -38,6 +38,10 @@ def relevance(src) -> dict:
                 "econ": 0}
     econ = sum(w for k, w in L.ECON.items() if k in t)
     if econ < 3:
+        if econ > 0:  # descarte ambiguo: hay vocabulario económico pero bajo el umbral → revisión humana
+            return {"relevante": False, "revisar": True, "evidencia": "", "econ": econ,
+                    "motivo": f"Revisión pendiente: hay términos económicos pero bajo el umbral de las reglas (score={econ}); "
+                              "con Claude conectado se evalúa por significado"}
         return {"relevante": False, "motivo": f"Sin términos económicos suficientes (score={econ})", "evidencia": "",
                 "econ": econ}
     return {"relevante": True, "motivo": "", "evidencia": "", "econ": econ}
@@ -141,15 +145,39 @@ def score(sig: dict, src_by_id, tool_results=()):
     }
 
 
-def guardrails(sig):
-    t = norm(" ".join(cl["texto"] for cl in sig["claims"]))
-    out = [msg for pat, msg in L.GUARDRAILS if re.search(pat, t)]
-    calc = sorted({cl["fuente"] for cl in sig["claims"] if cl["texto"].startswith("Cálculo (código)")})
+OPEN = ("hipotesis", "faltante", "advertencia")
+
+
+def guardrails(sig, src_by_id=None):
+    """Cautelas derivadas del ESTADO VIGENTE de las afirmaciones:
+    - se mantiene si alguna hipótesis / faltante / advertencia activa la dispara (o solo hechos, sin cierre);
+    - si las afirmaciones que la disparaban fueron resueltas o refutadas por una fuente posterior, se reemplaza por
+      una nota atribuida a esa fuente (declaración de la fuente, no verificación independiente)."""
+    cl = [c for c in sig["claims"] if not is_row(c)]
+    by_sid = {c["sid"]: c for c in sig["claims"]}
+    out = []
+    for pat, msg in L.GUARDRAILS:
+        hits = [c for c in cl if re.search(pat, norm(c["texto"]))]
+        if not hits:
+            continue
+        abiertas = [c for c in hits if c["tipo"] in OPEN and not c.get("superada")]
+        cerradas = [c for c in hits if c.get("superada")]
+        if abiertas or not cerradas:
+            out.append(msg)
+            continue
+        c = cerradas[-1]
+        por = by_sid.get(c.get("por"), {})
+        area = src_by_id[por["fuente"]].area if src_by_id and por.get("fuente") in src_by_id else "Una fuente posterior"
+        txt = por.get("texto", "")
+        txt = txt if len(txt) <= 140 else txt[:139].rsplit(" ", 1)[0] + "…"
+        out.append(f"Actualizado por {c['por']}: {area} declara «{txt}». Lo registro como declaración de la fuente, "
+                   f"no como verificación independiente.")
+    calc = sorted({c["fuente"] for c in sig["claims"] if c["texto"].startswith("Cálculo (código)")})
     if calc:  # hay datos tabulados: se cuantifica SOLO sobre la muestra, con cálculo verificable
         out = [m for m in out if not m.startswith("No cuantifico")]
         out.insert(0, f"Cuantifico solo sobre la muestra tabulada ({', '.join(calc)}), con cálculo hecho por código; "
                       "no extrapolo a toda la cartera ni estimo la pérdida total.")
-    return out
+    return list(dict.fromkeys(out))
 
 
 def next_steps(sig):
@@ -278,8 +306,11 @@ def analyze(sources, tool_runner=None, log=None, ai=None, max_comites=3):
         titulo = p or "Señal: " + ", ".join(tf.top_terms(g, 3))
 
         core_claims = [c for c in claims if not is_row(c)]
-        rules_rel = contradictions(core_claims, by_id)
+        # las reglas auditan con SU clasificación independiente (no con los tipos ya decididos por Claude)
+        rules_rel = contradictions([{**c, "tipo": c["tipo_reglas"]} for c in core_claims], by_id)
+        tipo_r = {c["sid"]: c["tipo_reglas"] for c in core_claims}
         cl_rel = ai.relations(titulo, core_claims) if ai and A else None
+        rel_motor = "claude" if cl_rel is not None else ("reglas (Claude falló)" if ai and A else "reglas")
         cautelas, rel_disp = [], []
         if cl_rel is not None:
             contra, cautelas = list(cl_rel["relaciones"]), cl_rel["cautelas"]
@@ -291,7 +322,9 @@ def analyze(sources, tool_runner=None, log=None, ai=None, max_comites=3):
             txt = {c["sid"]: c["texto"] for c in core_claims}
             for origen, x in disputes:
                 item = {"de": x["de"], "a": x["a"], "relacion": x["relacion"], "propone": origen, "comite": None}
-                keep = origen == "claude"
+                # precedencia: una corrección explícita (léxico de rectificación) que refuta o resuelve se conserva
+                # aunque Claude no la vea, salvo que el comité diga lo contrario
+                keep = origen == "claude" or tipo_r.get(x["de"]) == "correccion"
                 if can_debate():
                     v = ai.committee(f"¿La afirmación {x['de']} {x['relacion']} a la afirmación {x['a']}?",
                                      f"{x['a']} (anterior) | {txt[x['a']]}\n{x['de']} (posterior) | {txt[x['de']]}",
@@ -303,7 +336,7 @@ def analyze(sources, tool_runner=None, log=None, ai=None, max_comites=3):
                 if origen == "claude" and not keep:
                     contra = [c for c in contra if not (c["de"] == x["de"] and c["a"] == x["a"])]
                 if origen == "reglas" and keep:
-                    contra.append({**x, "origen": "comite"})
+                    contra.append({**x, "origen": "comite" if item["comite"] is not None else "reglas (corrección)"})
                 rel_disp.append(item)
         else:
             contra = [{**x, "origen": "reglas"} for x in rules_rel]
@@ -314,11 +347,12 @@ def analyze(sources, tool_runner=None, log=None, ai=None, max_comites=3):
                "entidades_ai": [{k: (A.get(f) or {}).get(k) for k in ("producto", "canal", "parametro")} for f in g if A.get(f)]}
         sig["consultas"] = tool_runner(sig, by_id, log) if tool_runner else []
         sig.update(score(sig, by_id, sig["consultas"]))
-        sig["no_afirmo"] = list(dict.fromkeys(guardrails(sig) + cautelas))
+        sig["no_afirmo"] = list(dict.fromkeys(guardrails(sig, by_id) + cautelas))
         sig["proximos_pasos"] = next_steps(sig)
         n_ai = sum(1 for c in claims if c["decide"] == "claude")
         sig["auditoria"] = {"motor": "claude" if n_ai else "reglas", "oraciones": len(claims), "por_claude": n_ai,
-                            "coinciden": n_ai - len(disc), "discrepancias": disc, "relaciones_en_disputa": rel_disp}
+                            "coinciden": n_ai - len(disc), "discrepancias": disc, "relaciones_en_disputa": rel_disp,
+                            "relaciones_motor": rel_motor}
         signals.append(sig)
     signals.sort(key=lambda s: -s["score"])
     if ai:

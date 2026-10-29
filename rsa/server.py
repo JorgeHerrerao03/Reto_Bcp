@@ -11,6 +11,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import llm
+from .brain import PROMPT_VER
 from .engine import AGENT_DIR, Engine
 from .search import search
 
@@ -95,10 +96,7 @@ def make_handler(eng: Engine):
                 return b["markdown"]
             data = base64.b64decode(b["b64"]) if b.get("b64") else b.get("texto", "")
             md = eng.build_md(data=data, filename=b.get("filename", ""), meta=b.get("meta") or {})
-            sid = eng._parse_text(md).id
-            if sid in {s.id for s in eng.sources()}:  # ID ocupado (p.ej. otro F19) → siguiente libre
-                md = re.sub(r"^\*\*ID:\*\* .*$", f"**ID:** {eng.next_id()}", md, count=1, flags=re.M)
-            return md
+            return eng.free_id(md)  # ID ocupado o inválido → siguiente libre
 
         def preview(self, b):
             return eng.preview(self._md(b))
@@ -117,10 +115,7 @@ def make_handler(eng: Engine):
 
         def demo(self, b):
             p = AGENT_DIR / "demo" / DEMOS[b.get("caso", "contradice")]
-            md = eng.build_md(path=p)
-            if eng._parse_text(md).id in {s.id for s in eng.sources()}:  # ID ocupado → siguiente libre
-                md = eng.build_md(path=p, meta={"id": eng.next_id()})
-            v = eng.incorporar(md=md)
+            v = eng.incorporar(md=eng.free_id(eng.build_md(path=p)))  # repetir una demo → siguiente ID libre
             return {"ok": True, "v": v["v"], "explicacion": v["diff"]["explicacion"], "cambios": list(v["diff"]["cambios"])}
 
         def preguntar(self, b):
@@ -156,8 +151,10 @@ def serve(eng: Engine, port=8765, open_browser=True):
     if not eng.state["versiones"]:
         print("  Analizando las fuentes" + (" con Claude (20-40 s la primera vez)…" if eng.motor_mode() == "claude" else "…"))
         eng.run()
-    elif eng.motor_mode() == "claude" and last != "claude":
-        print("  Hay API key y la última versión se hizo solo con reglas: re-analizando con Claude (20-40 s)…")
+    elif eng.motor_mode() == "claude" and (last != "claude" or
+                                           (eng.latest().get("motor") or {}).get("prompt_ver") != PROMPT_VER):
+        print("  Hay API key y la última versión se hizo con reglas o con una versión anterior del motor: "
+              "re-analizando con Claude (20-40 s)…", flush=True)
         v = eng.run(evento="re-análisis con Claude")
         print("  Motor:", (v.get("motor") or {}).get("modo"), "·", (v.get("motor") or {}).get("aviso", "ok"))
     else:  # regenerar siempre la UI con el código actual (evita servir un reporte viejo)

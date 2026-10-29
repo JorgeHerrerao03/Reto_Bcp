@@ -82,6 +82,28 @@ def _short(t, n=190):
     return t if len(t) <= n else t[: n - 1].rsplit(" ", 1)[0] + "…"
 
 
+# Qué tipo de afirmación vigente puede respaldar cada lista del brief
+CITA_OK = {"sabemos": {"hecho", "correccion"}, "creemos": {"hipotesis", "advertencia"},
+           "confirmar": {"faltante", "hipotesis", "advertencia"}, "plan": {"faltante", "hipotesis", "advertencia", "hecho", "correccion"}}
+
+
+def _cambio(sig, area):
+    """Lo que dejó de ser válido o quedó resuelto por evidencia posterior, agrupado por la fuente que lo cambió
+    (calculado por código, con atribución: es lo que declara esa fuente, no una verificación independiente)."""
+    by = {c["sid"]: c for c in sig["claims"]}
+    grupos = {}
+    for c in sig["claims"]:
+        if c.get("superada") and not _is_row(c):
+            grupos.setdefault(c["por"], {"refutada": [], "resuelta": []})[c["superada"]].append(c["sid"])
+    out = []
+    for por, g in grupos.items():
+        partes = ([f"deja sin efecto {', '.join(g['refutada'])}"] if g["refutada"] else []) + \
+                 ([f"resuelve {', '.join(g['resuelta'])}"] if g["resuelta"] else [])
+        out.append({"texto": f"{area(por)} declara «{_short(by.get(por, {}).get('texto', ''), 150)}»: "
+                             + " y ".join(partes) + ".", "cita": por})
+    return out[:4]
+
+
 def fallback(sig, fuentes) -> dict:
     T = PLANTILLAS.get(sig.get("palanca"), GENERICA)
     area = lambda sid: fuentes.get(sid.split(".")[0], {}).get("area", "Por definir")
@@ -97,7 +119,10 @@ def fallback(sig, fuentes) -> dict:
         "por_que_importa": T["importa"],
         "objetivo": T["objetivo"],
         "alcance": {"incluye": T["incluye"], "excluye": T["excluye"]},
-        "sabemos": [{"texto": _short(c["texto"]), "cita": c["sid"]} for c in _pick(sig, "hecho", 4)],
+        "cambio": _cambio(sig, area),
+        # atribuido al área que lo reporta: una observación interna no equivale a una verificación independiente
+        "sabemos": [{"texto": (f"{area(c['sid'])} reporta: " if not c["texto"].startswith("Cálculo") else "")
+                              + _short(c["texto"]), "cita": c["sid"]} for c in _pick(sig, "hecho", 4)],
         "creemos": [{"texto": _short(c["texto"]), "cita": c["sid"]} for c in _pick(sig, "hipotesis", 3)],
         "confirmar": [{"texto": _short(c["texto"]), "cita": c["sid"]} for c in _pick(sig, "faltante", 4)],
         "plan": plan,
@@ -124,7 +149,10 @@ def prompt(sig, fuentes):
             f"Evidencia (sid | área | estado | texto):\n{rows}\n"
             "Restricciones (lo que NO se puede afirmar):\n" + "\n".join(sig["no_afirmo"]) +
             "\n\nReglas: lenguaje claro y ejecutivo, en español; máximo 4 ítems por lista; cada ítem de sabemos, creemos, "
-            "confirmar y plan cita UN sid existente; responsables = áreas que aparecen en la evidencia; las cifras solo se "
+            "confirmar y plan cita UN sid VIGENTE (estado distinto de refutada/resuelta); sabemos solo cita hechos o "
+            "correcciones y atribuye el área que lo reporta ('Operaciones reporta…'); una observación reportada NO es su "
+            "causa: la causa va en creemos; lo refutado o resuelto no se presenta como vigente; cada paso del plan dice "
+            "acción, entregable y condición de cierre; responsables = áreas (propuestas) que aparecen en la evidencia; las cifras solo se "
             "usan si aparecen literalmente en la evidencia; no recomiendes acciones irreversibles sin validación.\n"
             f"JSON: {SCHEMA}")
 
@@ -135,14 +163,18 @@ def normalize(d, sig, fuentes):
     if not isinstance(d, dict) or not (d.get("oportunidad") and d.get("objetivo")):
         return None
     base = fallback(sig, fuentes)
-    valid = {c["sid"] for c in sig["claims"]}
-    texts = [c["texto"] for c in sig["claims"]]
+    texts = {c["sid"]: c["texto"] for c in sig["claims"]}
+    tipo_vig = {c["sid"]: c["tipo"] for c in sig["claims"] if not c.get("superada")}  # solo evidencia vigente
 
     def items(key, fields):
         out = []
         for x in d.get(key) or []:
-            if isinstance(x, dict) and x.get("cita") in valid and all(isinstance(x.get(f), str) and x[f].strip() for f in fields):
-                out.append({f: x[f].strip()[:240] for f in fields + ["cita"]})
+            if not (isinstance(x, dict) and tipo_vig.get(x.get("cita")) in CITA_OK[key]
+                    and all(isinstance(x.get(f), str) and x[f].strip() for f in fields)):
+                continue
+            if not all(llm.nums_ok(x[f], [texts[x["cita"]]]) for f in fields):  # cifra contra la oración citada
+                continue
+            out.append({f: x[f].strip()[:240] for f in fields + ["cita"]})
         return out[:4] or base[key]
 
     b = {"origen": "claude",
@@ -152,6 +184,7 @@ def normalize(d, sig, fuentes):
          "objetivo": str(d.get("objetivo") or base["objetivo"])[:300],
          "alcance": {k: [str(x)[:160] for x in ((d.get("alcance") or {}).get(k) or [])][:4] or base["alcance"][k]
                      for k in ("incluye", "excluye")},
+         "cambio": base["cambio"],
          "sabemos": items("sabemos", ["texto"]), "creemos": items("creemos", ["texto"]),
          "confirmar": items("confirmar", ["texto"]), "plan": items("plan", ["paso", "responsable"]),
          "decision": [{"si": str(x.get("si"))[:200], "entonces": str(x.get("entonces"))[:200]}
@@ -159,11 +192,9 @@ def normalize(d, sig, fuentes):
                      or base["decision"],
          "riesgos": [str(x)[:220] for x in (d.get("riesgos") or []) if isinstance(x, str)][:4] or base["riesgos"]}
     blob = " ".join([b["titular"], b["oportunidad"], b["por_que_importa"], b["objetivo"]] +
-                    [x["texto"] for k in ("sabemos", "creemos", "confirmar") for x in b[k]] + [x["paso"] for x in b["plan"]])
-    ev = " ".join(texts)
-    for m in llm.NUM.finditer(blob):  # toda cifra con unidad debe existir literalmente en la evidencia
-        if re.match(r"\d[\d.,]*", m.group(0)).group(0).rstrip(".,") not in ev:
-            return {**base, "origen": "plantilla (Claude usó cifras no presentes en la evidencia)"}
+                    [x["si"] + " " + x["entonces"] for x in b["decision"]] + b["riesgos"])
+    if not llm.nums_ok(blob, list(texts.values())):  # toda cifra narrativa debe existir con el mismo valor
+        return {**base, "origen": "plantilla (Claude usó cifras no presentes en la evidencia)"}
     return b
 
 

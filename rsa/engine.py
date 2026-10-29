@@ -18,6 +18,7 @@ from .corpus import load_package, parse_md
 from .tools import make_runner
 
 # En un .exe (PyInstaller) los datos viven junto al ejecutable, no en el bundle temporal
+ID_RE = re.compile(r"F\d{2,4}")
 AGENT_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
 
 
@@ -75,7 +76,7 @@ class Engine:
     def sources(self, extra=None):
         srcs = load_package(self.paquete)
         for sid in self.state["incorporadas"]:
-            srcs.append(parse_md(self.inc_dir / f"{sid}.md", origen="incorporada"))
+            srcs.append(parse_md(self._inc_path(sid), origen="incorporada"))
         if extra:
             srcs.append(extra)
         return srcs
@@ -111,8 +112,23 @@ class Engine:
         return s
 
     def _validate(self, src):
+        if not ID_RE.fullmatch(src.id):
+            raise ValueError(f"ID inválido '{src.id}': usa F seguido de dígitos (p.ej. F19)")
         if src.id in {s.id for s in self.sources()}:
             raise ValueError(f"ID duplicado: {src.id}")
+
+    def free_id(self, md):
+        """Si el ID del encabezado está ocupado o es inválido, lo reemplaza por el siguiente libre."""
+        sid = self._parse_text(md).id
+        if ID_RE.fullmatch(sid) and sid not in {s.id for s in self.sources()}:
+            return md
+        return re.sub(r"^\*\*ID:\*\*.*$", f"**ID:** {self.next_id()}", md, count=1, flags=re.M)
+
+    def _inc_path(self, sid):
+        p = (self.inc_dir / f"{sid}.md").resolve()
+        if not ID_RE.fullmatch(sid) or p.parent != self.inc_dir.resolve():
+            raise ValueError(f"ID inválido '{sid}'")
+        return p
 
     # ---------- ciclo ----------
     def brain(self):
@@ -156,7 +172,8 @@ class Engine:
         self._assign_ids(res["signals"])
         prev = self.state["versiones"][-1] if self.state["versiones"] else None
         ver = {"v": len(self.state["versiones"]) + 1, "ts": datetime.now().isoformat(timespec="seconds"),
-               "evento": evento, "fuentes": [s.to_dict() for s in srcs], **res}
+               "evento": evento, "fuentes": [s.to_dict() for s in srcs], **res,
+               "incorporadas": [s.id for s in srcs if s.origen == "incorporada"]}
         ver["diff"] = diff(prev, ver) if prev else None
         return ver, by_id
 
@@ -189,17 +206,32 @@ class Engine:
         if not self.state["versiones"]:
             self.run()
         self.inc_dir.mkdir(parents=True, exist_ok=True)
-        (self.inc_dir / f"{src.id}.md").write_text(md, encoding="utf-8")
+        self._inc_path(src.id).write_text(md, encoding="utf-8")
         self.state["incorporadas"].append(src.id)
-        return self.run(evento=f"incorporar {src.id} · {src.titulo}")
+        try:
+            return self.run(evento=f"incorporar {src.id} · {src.titulo}")
+        except Exception:
+            self.state["incorporadas"].remove(src.id)  # transaccional: si el análisis falla, no queda a medias
+            raise
+
+    @staticmethod
+    def _inc_of(ver):
+        return ver.get("incorporadas", [f["id"] for f in ver["fuentes"] if f.get("origen") == "incorporada"])
 
     def deshacer(self):
-        if len(self.state["versiones"]) < 2 or not self.state["incorporadas"]:
+        """Retira la última fuente incorporada y vuelve a la última versión que NO la contiene
+        (también descarta re-análisis posteriores a esa incorporación)."""
+        if not self.state["incorporadas"]:
             raise ValueError("No hay incorporaciones que deshacer")
-        sid = self.state["incorporadas"].pop()
-        self.state["versiones"].pop()
-        ver = self.state["versiones"][-1]
-        self._write(ver, {s.id: s for s in self.sources()})
+        sid = self.state["incorporadas"][-1]
+        keep = [v for v in self.state["versiones"] if sid not in self._inc_of(v)]
+        target = keep[-1] if keep else None
+        if not target or set(self._inc_of(target)) != set(self.state["incorporadas"][:-1]):
+            raise ValueError(f"No hay una versión guardada sin {sid}; usa Reset para reconstruir")
+        n_drop = len(self.state["versiones"]) - (self.state["versiones"].index(target) + 1)
+        self.state["incorporadas"].pop()
+        del self.state["versiones"][len(self.state["versiones"]) - n_drop:]
+        self._write(target, {s.id: s for s in self.sources()})
         return sid
 
     def sync(self, folder):
@@ -211,13 +243,12 @@ class Engine:
             if p.name.lower() == "readme.md":
                 continue
             try:
-                md = self.build_md(path=p)
-                files.append((self._parse_text(md).fecha, p.name, md))
+                files.append((self._parse_text(self.build_md(path=p)).fecha, p.name, p))
             except ValueError as e:
                 print(f"[sync][omitido] {p.name}: {e}")
-        for _, name, md in sorted(files):
-            try:
-                self.incorporar(md=md)
+        for _, name, p in sorted(files):
+            try:  # el ID se asigna al incorporar cada archivo: dos archivos sin ID reciben F19 y F20
+                self.incorporar(md=self.free_id(self.build_md(path=p)))
                 print(f"[sync] incorporado {name}")
             except ValueError as e:
                 print(f"[sync][omitido] {name}: {e}")
