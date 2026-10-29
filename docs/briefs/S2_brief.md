@@ -27,7 +27,7 @@ Conciliar cada comisión con transacciones y cuentas contables y decidir, caso p
 - Se está proponiendo depurar el listado, pero aún no se ha conciliado cada tarifa con transacciones y cuentas contables. [F17.2]
 
 ## Plan de acción
-| # | Acción | Responsable | Evidencia |
+| # | Acción | Responsable propuesto | Evidencia |
 |---|---|---|---|
 | 1 | Finanzas solicita no hacerlo hasta verificar su materialidad. | Banca Mayorista | F17.5 |
 | 2 | Finanzas solicita vincular códigos de tarifa con tipos de transacción y cuentas contables antes de retirar comisiones. | Finanzas Mayorista | F18.1 |

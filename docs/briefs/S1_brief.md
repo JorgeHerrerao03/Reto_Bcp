@@ -17,10 +17,10 @@ Confirmar o descartar la desviación de prima en Web y, si se confirma, dimensio
 **No incluye:** Recalcular primas históricas sin validación legal; Cambios a la tarifa aprobada
 
 ## Lo que sabemos
-- En la sesión de certificación se indicó que la tabla de configuración por canal admite un campo rate_input y que el motor aplica una conversión anual-a-mensual. [F03.1]
-- La parametrización por canal debe recibir el dato anual; la mensualización la ejecuta el motor de cobros. [F02.2]
-- Para el producto Crédito Flexible, la tasa de referencia aprobada se expresa anualmente. [F02.1]
-- En el canal Web de créditos, el sistema espera una tasa anual de seguro y calcula internamente su equivalente mensual. [F01.1]
+- Tecnología reporta: En la sesión de certificación se indicó que la tabla de configuración por canal admite un campo rate_input y que el motor aplica una conversión anual-a-mensual. [F03.1]
+- Seguros reporta: La parametrización por canal debe recibir el dato anual; la mensualización la ejecuta el motor de cobros. [F02.2]
+- Seguros reporta: Para el producto Crédito Flexible, la tasa de referencia aprobada se expresa anualmente. [F02.1]
+- Canales Digitales reporta: En el canal Web de créditos, el sistema espera una tasa anual de seguro y calcula internamente su equivalente mensual. [F01.1]
 
 ## Lo que creemos (por validar)
 - La alerta se considera preliminar. [F04.6]
@@ -34,7 +34,7 @@ Confirmar o descartar la desviación de prima en Web y, si se confirma, dimensio
 - La comparación no está ajustada por saldos, fechas ni elegibilidad. [F04.2]
 
 ## Plan de acción
-| # | Acción | Responsable | Evidencia |
+| # | Acción | Responsable propuesto | Evidencia |
 |---|---|---|---|
 | 1 | La tasa y la vigencia exactas deben verificarse en la tabla de parámetros autorizada. | Seguros | F02.3 |
 | 2 | El equipo solicita contrastar el valor cargado para Web con el de otros canales antes de concluir que hay un defecto. | Tecnología | F03.2 |

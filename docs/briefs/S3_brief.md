@@ -17,9 +17,9 @@ Construir el caso de negocio (elegibles, canibalización, valor incremental) ant
 **No incluye:** Ampliar la campaña antes de la aprobación formal
 
 ## Lo que sabemos
-- Se acordó evaluar escenarios de clientes elegibles, canibalización y valor incremental antes de solicitar aprobación. [F07.3]
-- Cualquier cambio de regla requiere aprobación y actualización de parámetros por canal. [F06.2]
-- La exoneración de membresía requiere cumplir umbrales de consumo definidos por segmento y periodo; existen excepciones documentadas para campañas específicas. [F06.1]
+- Marketing y Finanzas reporta: Se acordó evaluar escenarios de clientes elegibles, canibalización y valor incremental antes de solicitar aprobación. [F07.3]
+- Tarjetas reporta: Cualquier cambio de regla requiere aprobación y actualización de parámetros por canal. [F06.2]
+- Tarjetas reporta: La exoneración de membresía requiere cumplir umbrales de consumo definidos por segmento y periodo; existen excepciones documentadas para campañas específicas. [F06.1]
 
 ## Lo que creemos (por validar)
 - Finanzas advierte que podría reducir ingresos por membresía. [F07.2]
@@ -30,7 +30,7 @@ Construir el caso de negocio (elegibles, canibalización, valor incremental) ant
 - El nuevo criterio está en evaluación y aún no cuenta con aprobación formal. [F05.2]
 
 ## Plan de acción
-| # | Acción | Responsable | Evidencia |
+| # | Acción | Responsable propuesto | Evidencia |
 |---|---|---|---|
 | 1 | Cualquier cambio de regla requiere aprobación y actualización de parámetros por canal. | Tarjetas | F06.2 |
 | 2 | Se acordó evaluar escenarios de clientes elegibles, canibalización y valor incremental antes de solicitar aprobación. | Marketing y Finanzas | F07.3 |

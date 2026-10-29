@@ -16,11 +16,14 @@ Validar la preferencia del cliente y simular el impacto financiero antes de pasa
 **Incluye:** Segmentación de reclamos y preferencias; Simulación financiera (devengo, flujos, mora); Diseño de un piloto  
 **No incluye:** Despliegue productivo sin simulación ni aprobación
 
+## Lo que cambió con la nueva evidencia
+- Canales declara «Canales informa que se creó una maqueta navegable, pero que no existe todavía habilitación productiva del selector de fechas.»: deja sin efecto F11.1 y resuelve F11.2. [F12.1]
+
 ## Lo que sabemos
-- El equipo de experiencia registra comentarios sobre fechas de pago poco convenientes en algunos créditos. [F10.1]
-- Un cambio en el día de pago puede modificar días de devengo, flujos y reglas de corte. [F09.2]
-- El calendario de pagos actual se genera automáticamente. [F09.1]
-- Actualmente la fecha se asigna según la fecha de desembolso. [F08.2]
+- Experiencia Cliente reporta: El equipo de experiencia registra comentarios sobre fechas de pago poco convenientes en algunos créditos. [F10.1]
+- Créditos reporta: Un cambio en el día de pago puede modificar días de devengo, flujos y reglas de corte. [F09.2]
+- Créditos reporta: El calendario de pagos actual se genera automáticamente. [F09.1]
+- Producto Crédito reporta: Actualmente la fecha se asigna según la fecha de desembolso. [F08.2]
 
 ## Lo que creemos (por validar)
 - Producto está evaluando permitir al cliente seleccionar entre tres fechas de pago en Banca Web. [F08.1]
@@ -32,7 +35,7 @@ Validar la preferencia del cliente y simular el impacto financiero antes de pasa
 - Se desconoce el efecto sobre comportamiento de pago y costo operativo. [F08.3]
 
 ## Plan de acción
-| # | Acción | Responsable | Evidencia |
+| # | Acción | Responsable propuesto | Evidencia |
 |---|---|---|---|
 | 1 | Se sugiere segmentar por perfil y validar preferencia antes de inferir un impacto en satisfacción. | Experiencia Cliente | F10.3 |
 | 2 | Se solicita corregir la interpretación del acta anterior y mantener el estado como propuesta en evaluación. | Canales | F12.2 |
@@ -44,9 +47,8 @@ Validar la preferencia del cliente y simular el impacto financiero antes de pasa
 | El impacto financiero es negativo o la demanda baja | Mantener el calendario actual |
 
 ## Riesgos y lo que no afirmamos
-- No asumo que exista piloto productivo: el estado debe confirmarse con evidencia de despliegue.
+- Actualizado por F12.1: Canales declara «Canales informa que se creó una maqueta navegable, pero que no existe todavía habilitación productiva del selector de fechas.». Lo registro como declaración de la fuente, no como verificación independiente.
 - No extrapolo a toda la cartera: muestra no representativa.
-- No afirmo estado productivo: la evidencia no distingue producción de certificación/demo.
 
 ---
 
@@ -89,9 +91,8 @@ Validar la preferencia del cliente y simular el impacto financiero antes de pasa
 - ~~«No se adjuntan evidencias de despliegue ni resultados; el área de Canales debe confirmar si el cambio llegó a producción.» [F11.2]~~ → resuelta por [F12.1]
 
 ## Lo que NO afirmo
-- No asumo que exista piloto productivo: el estado debe confirmarse con evidencia de despliegue.
+- Actualizado por F12.1: Canales declara «Canales informa que se creó una maqueta navegable, pero que no existe todavía habilitación productiva del selector de fechas.». Lo registro como declaración de la fuente, no como verificación independiente.
 - No extrapolo a toda la cartera: muestra no representativa.
-- No afirmo estado productivo: la evidencia no distingue producción de certificación/demo.
 
 ## Próximos pasos (derivados de fuentes)
 - Se sugiere segmentar por perfil y validar preferencia antes de inferir un impacto en satisfacción. [F10.3]
