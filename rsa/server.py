@@ -36,6 +36,15 @@ def make_handler(eng: Engine):
 
         def do_GET(self):
             if self.path in ("/", "/index.html"):
+                try:  # se regenera con el código de interfaz actual (recarga report.py: no hace falta reiniciar)
+                    import importlib
+                    from . import report, tools
+                    importlib.reload(tools)
+                    importlib.reload(report)
+                    with LOCK:
+                        report.write(eng.state, eng.out / "reporte.html")
+                except Exception:
+                    traceback.print_exc()
                 html = (eng.out / "reporte.html").read_text(encoding="utf-8")
                 return self._send(200, html.replace("<head>", "<head><script>window.RSA_APP=true</script>", 1),
                                   "text/html; charset=utf-8")
