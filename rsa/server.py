@@ -3,6 +3,9 @@ python -m rsa app → abre el navegador en http://127.0.0.1:8765 (solo escucha e
 from __future__ import annotations
 
 import base64
+import os
+import socket
+import time
 import json
 import re
 import threading
@@ -95,7 +98,7 @@ def make_handler(eng: Engine):
             route = {"/api/preview": self.preview, "/api/incorporar": self.incorporar,
                      "/api/deshacer": self.deshacer, "/api/reset": self.reset, "/api/demo": self.demo,
                      "/api/preguntar": self.preguntar, "/api/config": self.config, "/api/llm/test": self.llm_test,
-                     "/api/llm/resumenes": self.resumenes}.get(self.path)
+                     "/api/llm/resumenes": self.resumenes, "/api/apagar": self.apagar}.get(self.path)
             if not route:
                 return self._send(404, {"error": "ruta no existe"})
             try:
@@ -152,6 +155,11 @@ def make_handler(eng: Engine):
             llm.save_cfg(b.get("key"), b.get("model"))
             return llm.status()
 
+        def apagar(self, b):
+            """Lo usa una copia nueva de la app para cerrar esta (solo desde 127.0.0.1)."""
+            threading.Timer(0.3, lambda: os._exit(0)).start()
+            return {"ok": True}
+
         def llm_test(self, b):
             return llm.test()
 
@@ -161,6 +169,29 @@ def make_handler(eng: Engine):
                     "total": len(v["signals"])}
 
     return H
+
+
+class _Server(ThreadingHTTPServer):
+    """En Windows SO_REUSEADDR permite que DOS procesos escuchen el mismo puerto (y el navegador habla con el
+    viejo). Se usa bind exclusivo para que una copia nueva nunca quede detrás de una antigua."""
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
+def _apagar_anterior(port):
+    """Si ya hay una copia de la app en el puerto, le pide que se cierre (las versiones nuevas lo aceptan)."""
+    import urllib.request
+    try:
+        urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{port}/api/apagar", data=b"{}",
+                                                      headers={"content-type": "application/json"}), timeout=1.5)
+        print("  Se cerró una copia anterior de la app que seguía abierta.")
+        time.sleep(1.0)
+    except Exception:
+        pass
 
 
 def serve(eng: Engine, port=8765, open_browser=True):
@@ -187,11 +218,15 @@ def serve(eng: Engine, port=8765, open_browser=True):
             report.write(eng.state, eng.out / "reporte.html")
     print("  Motor activo:", "Claude decide, reglas auditan" if eng.motor_mode() == "claude" else
           "solo reglas (no hay ANTHROPIC_API_KEY en .env o se forzó --solo-reglas)")
+    _apagar_anterior(port)
     for p in range(port, port + 20):
         try:
-            httpd = ThreadingHTTPServer(("127.0.0.1", p), make_handler(eng))
+            httpd = _Server(("127.0.0.1", p), make_handler(eng))
             break
         except OSError:
+            if p == port:
+                print(f"  ⚠ El puerto {port} está ocupado por otra copia antigua de la app. Ciérrala "
+                      f"(Administrador de tareas → Python) para no confundir pestañas; se usa otro puerto.")
             continue
     else:
         raise SystemExit("No hay puertos libres")
