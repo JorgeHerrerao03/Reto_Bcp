@@ -411,8 +411,9 @@ async function preview(){$("#prev-res").innerHTML='<div class="res sub">Analizan
 async function incorporate(){if(!PREV)return;$("#b-inc").disabled=true;try{const r=await api("/api/incorporar",{markdown:PREV.markdown});sset("rs-msg",r.explicacion);if(r.cambios&&r.cambios[0])sset("rs-sel",r.cambios[0]);sset("rs-tab","resumen");location.reload()}catch(e){toast("⚠ "+e.message,6000);$("#b-inc").disabled=false}}
 // ---------- Claude ----------
 async function cfgSave(){try{const r=await api("/api/config",{key:$("#c-key").value||undefined,model:$("#c-model").value||undefined});ST.llm=r;$("#c-key").value="";$("#cfg-res").textContent="Guardado. Key: "+(r.key||"—")+" · modelo "+r.modelo;header()}catch(e){$("#cfg-res").textContent="⚠ "+e.message}}
-async function cfgTest(){$("#cfg-res").textContent="Probando…";try{const r=await api("/api/llm/test",{});$("#cfg-res").textContent=`✅ Conectado · ${r.modelo} · ${r.ms} ms · USD ${r.costo_usd}`}catch(e){$("#cfg-res").textContent="⚠ "+e.message}}
-async function cfgSum(){$("#cfg-res").textContent="Re-analizando con Claude (usa caché; solo llama por lo nuevo)…";try{const r=await api("/api/llm/resumenes",{});sset("rs-msg",[`Re-análisis listo · resúmenes aceptados: ${r.aceptados}/${r.total}`]);location.reload()}catch(e){$("#cfg-res").textContent="⚠ "+e.message}}
+async function cfgModel(){const m=$("#c-model").value;if(m&&m!==ST?.llm?.modelo){ST.llm=await api("/api/config",{model:m});header()}}
+async function cfgTest(){$("#cfg-res").textContent="Probando…";try{await cfgModel();const r=await api("/api/llm/test",{});$("#cfg-res").textContent=`✅ Conectado · ${r.modelo} · ${r.ms} ms · USD ${r.costo_usd}`}catch(e){$("#cfg-res").textContent="⚠ "+e.message}}
+async function cfgSum(){$("#cfg-res").textContent="Re-analizando con Claude (usa caché; solo llama por lo nuevo)…";try{await cfgModel();const r=await api("/api/llm/resumenes",{});sset("rs-msg",[`Re-análisis listo · resúmenes aceptados: ${r.aceptados}/${r.total}`]);location.reload()}catch(e){$("#cfg-res").textContent="⚠ "+e.message}}
 // ---------- init ----------
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest(".modal").classList.remove("on"));
 document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("on")});
