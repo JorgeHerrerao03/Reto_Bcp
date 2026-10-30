@@ -200,9 +200,10 @@ def serve(eng: Engine, port=8765, open_browser=True):
         print("  Analizando las fuentes" + (" con Claude (20-40 s la primera vez)…" if eng.motor_mode() == "claude" else "…"))
         eng.run()
     elif eng.motor_mode() == "claude" and (last != "claude" or
-                                           (eng.latest().get("motor") or {}).get("prompt_ver") != PROMPT_VER):
+                                           (eng.latest().get("motor") or {}).get("prompt_ver") != PROMPT_VER or
+                                           (eng.latest().get("motor") or {}).get("modelo") != llm.cfg()["model"]):
         print("  Hay API key y la última versión se hizo con reglas o con una versión anterior del motor: "
-              "re-analizando con Claude (20-40 s)…", flush=True)
+              f"re-analizando con Claude · {llm.cfg()['model']} (20-60 s)…", flush=True)
         v = eng.run(evento="re-análisis con Claude")
         print("  Motor:", (v.get("motor") or {}).get("modo"), "·", (v.get("motor") or {}).get("aviso", "ok"))
     else:  # regenerar siempre la UI con el código actual (evita servir un reporte viejo)

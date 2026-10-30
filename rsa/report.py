@@ -207,7 +207,7 @@ textarea{min-height:120px;resize:vertical}
 <div class="modal" id="m-cfg"><div class="card"><button class="x" data-close>✕</button><h2>Conectar Claude (opcional)</h2>
 <div class="sub">La API key se guarda solo en el archivo <span class="mono">.env</span> de tu PC (excluido de git). Sin key todo funciona en modo determinístico.</div>
 <div class="grid" style="grid-template-columns:2fr 1fr;margin-top:14px"><div><label class="f">ANTHROPIC_API_KEY</label><input id="c-key" type="password" placeholder="sk-ant-…"></div>
-<div><label class="f">Modelo</label><input id="c-model" placeholder="claude-haiku-5-5"></div></div>
+<div><label class="f">Modelo</label><input id="c-model" placeholder="claude-haiku-5-5" list="c-models"><datalist id="c-models"><option value="claude-haiku-5-5">Haiku 5.5 · rápido y barato</option><option value="claude-sonnet-5-5">Sonnet 5.5 · más preciso, ~20× costo</option></datalist></div></div>
 <div class="row"><button class="btn pri" id="b-save">Guardar</button><button class="btn" id="b-test">Probar conexión</button><button class="btn" id="b-sum">Re-analizar con Claude</button></div><div id="cfg-res" class="res sub"></div></div></div>
 <div class="toast" id="toast"></div>
 <script>

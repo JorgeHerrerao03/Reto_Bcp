@@ -20,7 +20,7 @@ _ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) e
 ENV_F = _ROOT / ".env"
 DEFAULT_MODEL = "claude-haiku-5-5"
 # USD por millón de tokens (Haiku 5.5, prompts ≤100k). Editable vía RSA_PRICE_IN / RSA_PRICE_OUT
-PRICES = {"claude-haiku-5-5": (0.10, 0.50)}
+PRICES = {"claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.0, 10.0)}
 NUM = re.compile(r"\d[\d.,]*\s*(%|soles|s/\.?|usd|\$|millones|mil\b)", re.I)
 
 
@@ -75,7 +75,8 @@ def call(prompt, max_tokens=500, system=None, temperature=None):
     if system:
         body["system"] = system
     if _NO_THINK["ok"] and os.getenv("RSA_THINKING", "disabled") == "disabled":
-        body["thinking"] = {"type": "disabled"}
+        # Sonnet 5.5 apaga el razonamiento previo con "between_tools"; Haiku 5.5 acepta "disabled"
+        body["thinking"] = {"type": "between_tools" if "sonnet" in c["model"] else "disabled"}
         body["output_config"] = {"effort": os.getenv("RSA_EFFORT", "low")}
     # Modelos recientes no aceptan `temperature`: la reproducibilidad se logra con caché por contenido
     if temperature is not None and os.getenv("RSA_TEMPERATURE"):

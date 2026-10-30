@@ -86,7 +86,9 @@ Con API key configurada, **Claude decide siempre**: entiende español informal, 
 - Haiku 5.5 razona por defecto y ese razonamiento consume `max_tokens`; para estas tareas de extracción se envía `thinking: disabled` y `effort: low` (`RSA_THINKING=adaptive` lo reactiva).
 - Caché por contenido en `.cache/`: repetir un análisis no vuelve a llamar a la API.
 
-**Configurar.** En la app: ⋯ → Conectar Claude, o `python -m rsa config --key sk-ant-...`. Necesitas una API key de console.anthropic.com; una suscripción Pro/Max no incluye API. Para forzar el modo reglas: `python -m rsa --solo-reglas app` o `RSA_MODO=reglas`.
+**Modelo.** Por defecto `claude-haiku-5-5` (USD 0.10 / 0.50 por MTok). Para más precisión: ⋯ → Conectar Claude → Modelo `claude-sonnet-5-5` (USD 2 / 10 por MTok, ~20× el costo), con la misma API key; al reabrir la app se re-analiza con el modelo nuevo y la caché es por modelo.
+
+**Configurar.** En la app: ⋯ → Conectar Claude, o `python -m rsa config --key sk-ant-...` (`--model claude-sonnet-5-5` para cambiar de modelo). Necesitas una API key de console.anthropic.com; una suscripción Pro/Max no incluye API. Para forzar el modo reglas: `python -m rsa --solo-reglas app` o `RSA_MODO=reglas`.
 
 **Costo.** Con Haiku 5.5 (USD 0.10 / 0.50 por MTok):
 - El primer análisis de las 18 fuentes hace unas 25–35 llamadas; el costo observado ha sido del orden de USD 0.01 y tarda 20–40 s. Es una estimación, no una garantía: el costo real de cada versión se muestra en la app.
