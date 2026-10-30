@@ -6,7 +6,7 @@
 | 2 | clasificar_relevancia | {'motor': 'reglas', 'relevantes': ['F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07', 'F08', 'F09', 'F10', 'F11', 'F12', 'F17', 'F18'], 'descartadas': ['F13', 'F14', 'F15', 'F16'], 'discrepancias_reglas': []} |
 | 3 | agrupar_fuentes | grupo de la señal: ['F01', 'F02', 'F03', 'F04'] |
 | 4 | consulta_herramienta | args=['Credito Flexible', 'Web', 'rate_input'] · motivo: producto/canal/parámetro explícitos en fuentes · encontrado=True · [{'producto': 'Credito Flexible', 'canal': 'Web', 'parametro': 'rate_input', 'unidad_esperada': 'anual', 'valor_configurado': 'pendiente_de_validar', 'estado_produccion': 'sin_confirmacion', 'ultima_revision': '2026-09-06'}] · 4 ms |
-| 5 | consulta_herramienta | args=['Credito Flexible', 'Sucursal', 'rate_input'] · motivo: contraste entre canales solicitado en fuentes · encontrado=True · [{'producto': 'Credito Flexible', 'canal': 'Sucursal', 'parametro': 'rate_input', 'unidad_esperada': 'anual', 'valor_configurado': 'anual', 'estado_produccion': 'vigente', 'ultima_revision': '2026-09-06'}] · 1 ms |
+| 5 | consulta_herramienta | args=['Credito Flexible', 'Sucursal', 'rate_input'] · motivo: contraste entre canales solicitado en fuentes · encontrado=True · [{'producto': 'Credito Flexible', 'canal': 'Sucursal', 'parametro': 'rate_input', 'unidad_esperada': 'anual', 'valor_configurado': 'anual', 'estado_produccion': 'vigente', 'ultima_revision': '2026-09-06'}] · 0 ms |
 
 **Fuentes consultadas:** F01, F02, F03, F04
 **Aspectos no resueltos:**
