@@ -261,7 +261,7 @@ function render(){
    +`<details class="card noise"><summary>Descartadas como ruido (${v.descartadas.length})</summary>${v.descartadas.map(d=>`<div><button class="cite" data-src="${d.fuente}">${d.fuente}</button> ${esc(d.motivo)}</div>`).join("")||"<div>—</div>"}</details>`;
   document.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{sel=b.dataset.s;render()});
   const s=v.signals.find(x=>x.id===sel), d=v.diff; let h="";
-  if(d&&d.explicacion.length)h+=`<details class="card changes" open><summary>Qué cambió en v${v.v} · ${esc(v.evento)}</summary><ul>${d.explicacion.map(l=>`<li>${cites(esc(l))}</li>`).join("")}</ul></details>`;
+  if(d&&d.explicacion.length)h+=`<details class="card changes" id="chg" data-v="${v.v}" ${CHG[v.v]===false?"":"open"}><summary>Qué cambió en v${v.v} · ${esc(v.evento)}</summary><ul>${d.explicacion.map(l=>`<li>${cites(esc(l))}</li>`).join("")}</ul></details>`;
   h+=`<div class="card"><div class="seg">${[["resumen","Resumen"],["evidencia","Evidencia"],["analisis","Análisis"],["traza","Traza"]].map(([k,n])=>`<button class="${tab===k?"on":""}" data-t="${k}">${n}</button>`).join("")}</div><div class="pane">`;
   h+=!s?"<p>Sin señales.</p>":tab==="resumen"?brief(s,d):tab==="evidencia"?graph(v):tab==="analisis"?matrix(v)+weights(v):trace(v,s);
   $("#main").innerHTML=h+"</div></div>";
@@ -271,6 +271,9 @@ function render(){
 }
 $("#vsel").onchange=e=>{vi=+e.target.value;render()};$("#vprev").onclick=()=>{if(vi>0){vi--;render()}};$("#vnext").onclick=()=>{if(vi<V.length-1){vi++;render()}};
 function cites(h){return h.replace(/\[(F\d+(?:\.\d+)?)\]/g,(m,id)=>`<button class="cite" data-src="${id}">[${id}]</button>`)}
+// estado abierto/cerrado de "Qué cambió" por versión: se respeta al cambiar de pestaña o de señal
+const CHG=(()=>{try{return JSON.parse(localStorage.getItem("rsa_chg")||"{}")}catch(e){return {}}})();
+document.addEventListener("toggle",e=>{const t=e.target;if(t&&t.id==="chg"){CHG[t.dataset.v]=t.open;try{localStorage.setItem("rsa_chg",JSON.stringify(CHG))}catch(e){}}},true);
 function bindCites(){document.querySelectorAll("[data-src]").forEach(b=>b.onclick=e=>{e.stopPropagation();openSrc(b.dataset.src)});
   document.querySelectorAll("[data-tool]").forEach(b=>b.onclick=e=>{e.stopPropagation();openTool(b.dataset.tool)})}
 function openTool(id){const s=V[vi].signals.find(x=>x.id===id);if(!s)return;const om=(V[vi].log||[]).filter(e=>e.accion==="consulta_omitida");
