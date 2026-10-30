@@ -14,6 +14,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import llm
+from .analyze import ANALISIS_VER
 from .brain import PROMPT_VER
 from .engine import AGENT_DIR, Engine
 from .search import search
@@ -201,7 +202,8 @@ def serve(eng: Engine, port=8765, open_browser=True):
         eng.run()
     elif eng.motor_mode() == "claude" and (last != "claude" or
                                            (eng.latest().get("motor") or {}).get("prompt_ver") != PROMPT_VER or
-                                           (eng.latest().get("motor") or {}).get("modelo") != llm.cfg()["model"]):
+                                           (eng.latest().get("motor") or {}).get("modelo") != llm.cfg()["model"] or
+                                           (eng.latest().get("motor") or {}).get("analisis_ver") != ANALISIS_VER):
         print("  Hay API key y la última versión se hizo con reglas o con una versión anterior del motor: "
               f"re-analizando con Claude · {llm.cfg()['model']} (20-60 s)…", flush=True)
         v = eng.run(evento="re-análisis con Claude")

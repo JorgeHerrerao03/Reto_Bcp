@@ -166,6 +166,8 @@ class Engine:
             res["log"].extend(ai.events)
             ai.events = []
             res["motor"]["modo"] = "reglas"
+        from .analyze import ANALISIS_VER
+        res["motor"]["analisis_ver"] = ANALISIS_VER
         fx = {s.id: {"area": s.area, "titulo": s.titulo, "origen": s.origen} for s in srcs}
         for s in res["signals"]:
             s.setdefault("brief", strategy.fallback(s, fx))

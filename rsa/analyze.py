@@ -10,6 +10,7 @@ from . import lexicon as L
 from .text import TfIdf, norm, tokens
 
 W_IMPACTO, W_EVIDENCIA, W_URGENCIA = 0.45, 0.30, 0.25
+ANALISIS_VER = "a2"  # cambia cuando cambia la lógica de relaciones: fuerza re-análisis (usa la caché de Claude)
 OPERACIONAL = r"detecto|registrad|cobrad|configur|cargad|parametriz|tabla de configuracion"
 
 
@@ -314,19 +315,45 @@ def analyze(sources, tool_runner=None, log=None, ai=None, max_comites=3):
         cautelas, rel_disp = [], []
         if cl_rel is not None:
             contra, cautelas = list(cl_rel["relaciones"]), cl_rel["cautelas"]
+            # coherencia de tipos: solo se resuelve un faltante; se refuta/confirma una hipótesis (o algo dicho
+            # antes) — un hecho solo lo puede refutar una corrección explícita
+            tipo_c = {c["sid"]: c["tipo"] for c in core_claims}
+            es_corr = lambda sid: "correccion" in (tipo_c.get(sid), tipo_r.get(sid))
+            ok_rel = []
+            for x in contra:
+                ta = tipo_c.get(x["a"])
+                valida = (x["relacion"] == "resuelve" and ta == "faltante") or \
+                         (x["relacion"] == "confirma" and ta in ("hipotesis", "advertencia")) or \
+                         (x["relacion"] == "refuta" and (ta in ("hipotesis", "advertencia", "correccion") or es_corr(x["de"])))
+                if valida:
+                    ok_rel.append(x)
+                else:
+                    rel_disp.append({"de": x["de"], "a": x["a"], "relacion": x["relacion"], "propone": "claude",
+                                     "comite": None, "descartada": f"tipo incompatible ({ta})"})
+            contra = ok_rel
             ks = {(x["de"], x["a"]) for x in contra if x["relacion"] in ("refuta", "resuelve")}
             kr = {(x["de"], x["a"]): x for x in rules_rel}
             disputes = [("claude", x) for x in contra if x["relacion"] in ("refuta", "resuelve") and (x["de"], x["a"]) not in kr]
             disputes += [("reglas", x) for k, x in kr.items() if k not in ks]
-            disputes.sort(key=lambda d: by_id[d[1]["de"].split(".")[0]].fecha, reverse=True)
+            # primero al comité las refutaciones débiles de Claude (las que cambian el puntaje sin corrección)
+            disputes.sort(key=lambda d: (not (d[0] == "claude" and d[1]["relacion"] == "refuta" and not es_corr(d[1]["de"])),
+                                         [-ord(ch) for ch in by_id[d[1]["de"].split(".")[0]].fecha]))
             txt = {c["sid"]: c["texto"] for c in core_claims}
             for origen, x in disputes:
                 item = {"de": x["de"], "a": x["a"], "relacion": x["relacion"], "propone": origen, "comite": None}
                 # precedencia: una corrección explícita (léxico de rectificación) que refuta o resuelve se conserva
                 # aunque Claude no la vea, salvo que el comité diga lo contrario
-                keep = origen == "claude" or tipo_r.get(x["de"]) == "correccion"
+                # y una refutación de Claude sin corrección explícita (p.ej. una política que solo condiciona un
+                # plan) no se aplica sin comité: "refuta" exige contradicción, no una condición
+                keep = (origen == "claude" and (x["relacion"] != "refuta" or es_corr(x["de"]))) or \
+                       (origen == "reglas" and tipo_r.get(x["de"]) == "correccion")
                 if can_debate():
-                    v = ai.committee(f"¿La afirmación {x['de']} {x['relacion']} a la afirmación {x['a']}?",
+                    defin = {"refuta": "REFUTAR = la posterior demuestra que la anterior es FALSA o ya no aplica. Una "
+                                       "política, regla, requisito o condición que no contradice lo observado NO refuta; "
+                                       "si es compatible con la anterior o incluso la respalda, la respuesta es NO.",
+                             "resuelve": "RESOLVER = la posterior entrega el dato o la confirmación que la anterior decía "
+                                         "que faltaba. Planear conseguirlo NO lo resuelve."}.get(x["relacion"], "")
+                    v = ai.committee(f"¿La afirmación {x['de']} {x['relacion']} a la afirmación {x['a']}? {defin}",
                                      f"{x['a']} (anterior) | {txt[x['a']]}\n{x['de']} (posterior) | {txt[x['de']]}",
                                      f"{x['de']}→{x['a']}")
                     if v:
@@ -361,4 +388,4 @@ def analyze(sources, tool_runner=None, log=None, ai=None, max_comites=3):
         ai.events = []
     edges_all = [{"a": a, "b": b, "w": w} for a, b, w in edges]
     return {"signals": signals, "descartadas": descartadas, "edges": edges_all, "relevancia": rel, "log": log,
-            "comites": comites, "auditoria_relevancia": aud_rel, "motor": ai.motor() if ai and A else {"modo": "reglas"}}
+            "comites": comites, "auditoria_relevancia": aud_rel, "motor": {**(ai.motor() if ai and A else {"modo": "reglas"}), "analisis_ver": ANALISIS_VER}}

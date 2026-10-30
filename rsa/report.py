@@ -324,7 +324,7 @@ function brief(s,d){
     h+=`<details class="grp"><summary>Auditoría: Claude vs. reglas<span class="cnt">${A.coinciden}/${A.por_claude} coinciden</span></summary><div style="padding-left:20px">
     <div class="sub" style="margin-bottom:6px">Claude clasificó ${A.por_claude} de ${A.oraciones} oraciones; las reglas coinciden en ${A.coinciden}. Las discrepancias se marcan con ⚠ y las relaciones en disputa van al comité.${A.relaciones_motor?` Relaciones decididas por: <b>${esc(A.relaciones_motor)}</b>.`:""}</div>
     ${A.discrepancias.map(d=>`<div class="hit">${cites("["+d.sid+"]")} Claude: <b>${ET[d.claude]}</b> · reglas: <b>${ET[d.reglas]}</b> <span class="sub">— ${esc(d.razon)}</span></div>`).join("")}
-    ${rd.map(d=>`<div class="hit">Relación ${cites("["+d.de+"]")} ${d.relacion} ${cites("["+d.a+"]")} · propuesta por <b>${d.propone}</b>${d.comite===null?"":` · comité: <b>${d.comite?"se mantiene":"se descarta"}</b>`}</div>`).join("")}</div></details>`;
+    ${rd.map(d=>`<div class="hit">Relación ${cites("["+d.de+"]")} ${d.relacion} ${cites("["+d.a+"]")} · propuesta por <b>${d.propone}</b>${d.descartada?` · <b>descartada</b>: ${esc(d.descartada)}`:d.comite===null?(d.propone==="claude"&&d.relacion==="refuta"?" · <b>no aplicada</b> (sin corrección explícita ni comité)":""):` · comité: <b>${d.comite?"se mantiene":"se descarta"}</b>`}</div>`).join("")}</div></details>`;
     if(cm.length)h+=`<details class="grp"><summary>Comité de verificación<span class="cnt">${cm.length}</span></summary><div style="padding-left:20px">${comitesHtml(cm)}</div></details>`}
   return h}
 function comitesHtml(cm){return cm.map(c=>`<div class="callout ai" style="margin:8px 0"><h4>Comité · ${esc(c.objeto)}</h4><div>${esc(c.pregunta)}</div>

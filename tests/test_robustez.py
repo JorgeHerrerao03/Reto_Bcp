@@ -166,3 +166,36 @@ class CLI(unittest.TestCase):
             self.assertEqual(e.exception.code, 0)
         finally:
             shutil.rmtree(out, ignore_errors=True)
+
+
+def stub_refuta_debil(prompt, max_tokens=500, system=None, temperature=None):
+    """Claude propone que una política (F02.1, hecho) 'refuta' la hipótesis F01.2 y que F03.1 'resuelve' un hecho."""
+    if isinstance(prompt, str) and prompt.startswith("Señal:") and "relaciones" in prompt and "F01.2" in prompt:
+        return json.dumps({"relaciones": [{"de": "F02.1", "a": "F01.2", "relacion": "refuta", "motivo": "x"},
+                                          {"de": "F03.1", "a": "F01.1", "relacion": "resuelve", "motivo": "x"}],
+                           "cautelas": []}), {"modelo": "stub", "tokens": {}, "costo_usd": 0.0, "ms": 1}
+    if isinstance(prompt, str) and "juez imparcial" in prompt and "REFUTAR" in prompt:
+        return json.dumps({"veredicto": "no", "motivo": "una política no contradice lo observado"}), \
+            {"modelo": "stub", "tokens": {}, "costo_usd": 0.0, "ms": 1}
+    return fake_call(prompt, max_tokens, system, temperature)
+
+
+class RefutacionDebil(Base):
+    def setUp(self):
+        super().setUp()
+        self.p2 = mock.patch.object(llm, "call", stub_refuta_debil)
+        self.p2.start()
+
+    def tearDown(self):
+        self.p2.stop()
+        super().tearDown()
+
+    def test_politica_no_refuta_hipotesis(self):
+        v = self.eng.run()
+        s1 = next(s for s in v["signals"] if "seguro" in s["titulo"])
+        st = {c["sid"]: c.get("superada") for c in s1["claims"]}
+        self.assertIsNone(st["F01.2"])            # la hipótesis central sigue viva
+        self.assertIsNone(st["F01.1"])            # un hecho no se "resuelve"
+        disp = {(d["de"], d["a"]): d for d in s1["auditoria"]["relaciones_en_disputa"]}
+        self.assertIn("descartada", disp[("F03.1", "F01.1")])
+        self.assertFalse(disp[("F02.1", "F01.2")]["comite"])
